@@ -50,3 +50,19 @@ const JOB_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export function isValidJobId(value: string): boolean {
   return JOB_ID_PATTERN.test(value);
 }
+
+/** Longest question the chat accepts, in characters. */
+export const MAX_QUESTION_LENGTH = 500;
+
+export function isValidQuestion(value: string): boolean {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && trimmed.length <= MAX_QUESTION_LENGTH;
+}
+
+/**
+ * Link to the chat with a question typed in but not sent. Sending stays the
+ * user's decision, because every question costs LLM tokens.
+ */
+export function askHref(question: string): string {
+  return `/chat?q=${encodeURIComponent(question)}`;
+}

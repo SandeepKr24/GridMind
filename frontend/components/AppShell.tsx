@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
+import { availableSeasons } from "@/lib/hooks/useSeason";
 
 const NAV = [
   { href: "/", label: "Dashboard" },
@@ -12,14 +13,14 @@ const NAV = [
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const { soundEnabled, toggleSound, reducedMotion, season } = useSettings();
+  const { soundEnabled, toggleSound, reducedMotion, season, setSeason } = useSettings();
   const pathname = usePathname();
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-surface-base">
+    <div className="relative min-h-screen bg-surface-base">
       {!reducedMotion ? (
         <div
           aria-hidden="true"
@@ -38,7 +39,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="font-display text-[22px] font-bold uppercase tracking-[0.14em] text-ink">
               Gridmind
             </div>
-            <div className="rounded-sm border border-line-strong px-[5px] py-0.5 font-mono text-[9px] tracking-[0.18em] text-ink-ghost">
+            <div className="hidden rounded-sm border border-line-strong px-[5px] py-0.5 font-mono text-[9px] tracking-[0.18em] text-ink-ghost sm:block">
               AI RACE ANALYST
             </div>
           </Link>
@@ -64,9 +65,20 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2.5">
-            <div className="font-mono text-[11px] tracking-[0.08em] text-ink-ghost">
-              {season} SEASON
-            </div>
+            <label className="flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-ink-ghost">
+              <span>SEASON</span>
+              <select
+                value={season}
+                onChange={(e) => setSeason(Number(e.target.value))}
+                className="rounded-sm border border-line-strong bg-surface-inset px-2 py-1.5 font-mono text-[11px] text-ink-muted hover:text-ink"
+              >
+                {availableSeasons().map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={toggleSound}

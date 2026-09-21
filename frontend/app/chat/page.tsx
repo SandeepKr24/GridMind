@@ -4,7 +4,12 @@ import { Suspense, useCallback, useRef, useState } from "react";
 import { sendChatMessage } from "@/lib/api/chat";
 import { ApiError, describeError } from "@/lib/api/client";
 import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
-import { isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
+import {
+  MAX_QUESTION_LENGTH,
+  isValidJobId,
+  isValidQuestion,
+  useUrlParam,
+} from "@/lib/hooks/useUrlParam";
 import { LoadingPit } from "@/components/LoadingPit";
 import { ChatMessageView } from "@/components/chat/ChatMessage";
 import {
@@ -29,7 +34,6 @@ const SUGGESTIONS = [
  * original question once the data lands.
  */
 const PENDING_PREFIX = "gm.chat.pending.";
-const MAX_QUESTION_LENGTH = 500;
 
 function savePendingQuestion(jobId: string, question: string) {
   try {
@@ -63,9 +67,11 @@ export default function ChatPage() {
 }
 
 function ChatContent() {
+  // "Ask about this race" links arrive with ?q= — typed in, never auto-sent.
+  const [prefill] = useUrlParam("q", isValidQuestion);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<string[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(() => prefill?.trim() ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
   const [dismissed, setDismissed] = useState(false);
@@ -187,7 +193,7 @@ function ChatContent() {
   const isEmpty = messages.length === 0 && !error;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+    <div className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="hidden lg:block">
         <div className="gm-label mb-3">This session</div>
         {history.length === 0 ? (
@@ -212,7 +218,7 @@ function ChatContent() {
         )}
       </aside>
 
-      <div className="flex min-h-[70vh] flex-col gap-5">
+      <div className="flex min-h-[70vh] min-w-0 flex-col gap-5">
         <div className="flex-1">
           {isEmpty ? (
             <EmptyChat onPick={(q) => void ask(q)} />
@@ -267,7 +273,7 @@ function ChatContent() {
       </div>
 
       <LoadingPit
-        active={job.isActive && !dismissed}
+        active={(job.isActive || job.isFailed) && !dismissed}
         stage={job.stage}
         stageIndex={job.stageIndex}
         elapsedSeconds={job.elapsedSeconds}

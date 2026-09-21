@@ -11,7 +11,7 @@ export function Panel({
   as?: "div" | "section" | "article";
 }) {
   return (
-    <Tag className={`border border-line bg-surface-raised ${className}`}>
+    <Tag className={`min-w-0 border border-line bg-surface-raised ${className}`}>
       {children}
     </Tag>
   );

@@ -10,3 +10,7 @@ next-env.d.ts
 # Written by `next dev` when agentRules is on. Kept out of git in case it is re-enabled.
 AGENTS.md
 CLAUDE.md
+
+# Playwright output
+test-results/
+playwright-report/

@@ -49,7 +49,7 @@ export default function RacesPage() {
               body={`The backend returned no rounds for ${season}. It may not have calendar data for this season yet.`}
             />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-px border border-line bg-line">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-px border border-line bg-line">
               {rounds.map((round) => (
                 <RaceCard key={`${round.season}-${round.round}`} round={round} />
               ))}
@@ -126,7 +126,7 @@ function RaceCard({ round }: { round: CalendarRound }) {
 
 function CalendarSkeleton() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-px border border-line bg-line">
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(min(280px,100%),1fr))] gap-px border border-line bg-line">
       {[0, 1, 2, 3, 4, 5].map((i) => (
         <Panel key={i} className="border-0 p-5">
           <SkeletonRows count={3} />

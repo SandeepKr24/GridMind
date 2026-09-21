@@ -5,6 +5,7 @@ import { useCallback } from "react";
 import { useParams } from "next/navigation";
 import { getReport } from "@/lib/api/reports";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { askHref } from "@/lib/hooks/useUrlParam";
 import { AsyncBoundary } from "@/components/AsyncBoundary";
 import {
   Button,
@@ -68,7 +69,11 @@ export default function ReportPage() {
               <Link href={`/races/${report.race_id}`}>
                 <Button variant="quiet">RACE DATA</Button>
               </Link>
-              <Link href="/chat">
+              <Link
+                href={askHref(
+                  `Who gained the most positions at the ${report.season} ${report.event_name}?`
+                )}
+              >
                 <Button variant="quiet">ASK ABOUT THIS RACE</Button>
               </Link>
             </div>

@@ -9,7 +9,7 @@ import { triggerIngest } from "@/lib/api/jobs";
 import { describeError } from "@/lib/api/client";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
-import { isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
+import { askHref, isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
 import { AsyncBoundary, isNotFound } from "@/components/AsyncBoundary";
 import { LoadingPit } from "@/components/LoadingPit";
 import {
@@ -41,6 +41,7 @@ const SECTIONS = [
   { id: "pits", label: "PIT STOPS" },
   { id: "events", label: "EVENTS" },
   { id: "report", label: "REPORT" },
+  { id: "ask", label: "ASK" },
 ] as const;
 
 /** Route ids are "{season}-{round}", which the backend resolves to a session. */
@@ -131,7 +132,7 @@ function RaceDetailContent() {
       </AsyncBoundary>
 
       <LoadingPit
-        active={job.isActive && !dismissed}
+        active={(job.isActive || job.isFailed) && !dismissed}
         stage={job.stage}
         stageIndex={job.stageIndex}
         elapsedSeconds={job.elapsedSeconds}
@@ -174,7 +175,7 @@ function RaceHeader({ race }: { race: RaceDetail }) {
         <IngestionBadge state={race.state} />
       </div>
 
-      <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(130px,1fr))] gap-px bg-line">
+      <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(min(130px,100%),1fr))] gap-px bg-line">
         {facts.map((f) => (
           <div key={f.label} className="bg-surface-raised px-4 py-3">
             <div className="gm-label mb-1.5">{f.label}</div>
@@ -260,7 +261,7 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
               <ClassificationTable rows={stats.classification} />
             </Panel>
 
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
               <Panel as="section" className="p-[22px]" {...{ id: "positions" }}>
                 <SectionHeading>Position Changes</SectionHeading>
                 <PositionChangeChart changes={stats.position_changes} />
@@ -280,7 +281,7 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
               />
             </Panel>
 
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-6">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
               <Panel as="section" className="p-[22px]" {...{ id: "pits" }}>
                 <SectionHeading>Pit Stops</SectionHeading>
                 <PitStopTable stops={stats.pit_stops} />
@@ -296,7 +297,34 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
       </AsyncBoundary>
 
       <ReportSection raceId={raceId} eventName={race.event_name} />
+      <AskAboutRace race={race} />
     </>
+  );
+}
+
+function AskAboutRace({ race }: { race: RaceDetail }) {
+  const name = `${race.season} ${race.event_name}`;
+  const prompts = [
+    `Who gained the most positions at the ${name}?`,
+    `Which drivers used a one-stop strategy at the ${name}?`,
+    `Who had the best race pace at the ${name}?`,
+  ];
+
+  return (
+    <Panel as="section" className="p-[22px]" {...{ id: "ask" }}>
+      <SectionHeading>Ask About This Race</SectionHeading>
+      <div className="flex flex-col gap-px bg-line-faint">
+        {prompts.map((prompt) => (
+          <Link
+            key={prompt}
+            href={askHref(prompt)}
+            className="bg-surface-inset px-4 py-3.5 text-sm text-ink-muted no-underline transition-colors hover:bg-surface-hover hover:text-ink"
+          >
+            {prompt}
+          </Link>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -394,7 +422,7 @@ function ReportSection({
       )}
 
       <LoadingPit
-        active={reportJob.isActive && !dismissed}
+        active={(reportJob.isActive || reportJob.isFailed) && !dismissed}
         stage={reportJob.stage}
         stageIndex={reportJob.stageIndex}
         elapsedSeconds={reportJob.elapsedSeconds}

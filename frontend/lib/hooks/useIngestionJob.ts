@@ -127,9 +127,14 @@ export function useIngestionJob(
           if (Number.isFinite(parsed)) backendStartRef.current = parsed;
         }
 
+        // Decide this before queueing the update. React may run the updater
+        // later, by which point `lastStage` would already hold the new stage.
+        const stageChanged = next.stage !== lastStage;
+        lastStage = next.stage;
+
         setState((prev) => {
           let updated: JobState = { ...prev, job: next, error: null };
-          if (next.stage !== lastStage) {
+          if (stageChanged) {
             updated = appendLog(updated, STAGE_LABELS[next.stage]);
           }
           if (next.status === "failed" && next.error_message) {
@@ -137,8 +142,6 @@ export function useIngestionJob(
           }
           return updated;
         });
-
-        lastStage = next.stage;
 
         if (isJobFinished(next)) {
           if (!completionFired) {

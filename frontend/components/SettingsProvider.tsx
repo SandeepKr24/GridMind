@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
 import { useReducedMotion, useSound } from "@/lib/hooks/useSound";
+import { useSeason } from "@/lib/hooks/useSeason";
 
 /**
  * Small global settings only — sound, motion and selected season.
@@ -14,16 +15,15 @@ interface Settings {
   beepForStage: (stageIndex: number, isFinal: boolean) => void;
   reducedMotion: boolean;
   season: number;
+  setSeason: (season: number) => void;
 }
 
 const SettingsContext = createContext<Settings | null>(null);
 
-/** Current F1 season. Kept here so one edit moves the whole UI. */
-export const DEFAULT_SEASON = 2026;
-
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { enabled, toggle, beepForStage } = useSound();
   const reducedMotion = useReducedMotion();
+  const [season, setSeason] = useSeason();
 
   const value = useMemo<Settings>(
     () => ({
@@ -31,9 +31,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       toggleSound: toggle,
       beepForStage,
       reducedMotion,
-      season: DEFAULT_SEASON,
+      season,
+      setSeason,
     }),
-    [enabled, toggle, beepForStage, reducedMotion]
+    [enabled, toggle, beepForStage, reducedMotion, season, setSeason]
   );
 
   return (

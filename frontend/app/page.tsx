@@ -61,7 +61,7 @@ function Hero({ reducedMotion }: { reducedMotion: boolean }) {
           <span className="text-ink-dim">Understand the race.</span>
         </h1>
         <p className="m-0 mb-[30px] max-w-[520px] text-base leading-[1.55] text-ink-muted text-pretty">
-          No season pickers, no funnels. Ask in plain English — the analyst works out
+          Nothing to set up first. Ask in plain English — the analyst works out
           which session it needs and pulls the timing data.
         </p>
         <div className="flex flex-wrap gap-2.5">
@@ -106,13 +106,13 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
 
   return (
     <>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-px border border-line bg-line">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(190px,100%),1fr))] gap-px border border-line bg-line">
         {stats.map((s) => (
           <StatCard key={s.label} {...s} />
         ))}
       </div>
 
-      <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5">
+      <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-5">
         <Panel className="p-[22px]">
           <SectionHeading right={data.latest_race?.event_name.toUpperCase()}>
             Latest Podium
@@ -188,14 +188,14 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
 function DashboardSkeleton() {
   return (
     <>
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-px border border-line bg-line">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(190px,100%),1fr))] gap-px border border-line bg-line">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="bg-surface-raised px-[22px] py-5">
             <SkeletonRows count={2} />
           </div>
         ))}
       </div>
-      <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-5">
+      <div className="mt-5 grid grid-cols-[repeat(auto-fit,minmax(min(300px,100%),1fr))] gap-5">
         <Panel className="p-[22px]">
           <SkeletonRows count={4} />
         </Panel>
