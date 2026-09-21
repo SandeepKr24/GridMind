@@ -6,3 +6,7 @@ next-env.d.ts
 *.tsbuildinfo
 .env.local
 .env*.local
+
+# Written by `next dev` when agentRules is on. Kept out of git in case it is re-enabled.
+AGENTS.md
+CLAUDE.md
