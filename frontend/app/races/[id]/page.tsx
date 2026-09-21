@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { Suspense, useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import { getRace, getRaceStats } from "@/lib/api/races";
 import { generateReport, getRaceReport } from "@/lib/api/reports";
@@ -9,6 +9,7 @@ import { triggerIngest } from "@/lib/api/jobs";
 import { describeError } from "@/lib/api/client";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
+import { isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
 import { AsyncBoundary, isNotFound } from "@/components/AsyncBoundary";
 import { LoadingPit } from "@/components/LoadingPit";
 import {
@@ -51,11 +52,24 @@ function parseRaceId(id: string): { season: number; round: number } | null {
   return { season: s, round: r };
 }
 
+/**
+ * The Suspense boundary is required: the page reads the job id from the URL
+ * with useSearchParams, and Next 16 needs a boundary around that.
+ */
 export default function RaceDetailPage() {
+  return (
+    <Suspense fallback={<SkeletonRows count={5} />}>
+      <RaceDetailContent />
+    </Suspense>
+  );
+}
+
+function RaceDetailContent() {
   const params = useParams<{ id: string }>();
   const raceId = params.id;
 
-  const [jobId, setJobId] = useState<string | null>(null);
+  // Held in the URL so a refresh mid-ingest reattaches to the running job.
+  const [jobId, setJobId] = useUrlParam("job", isValidJobId);
   const [jobError, setJobError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
@@ -69,7 +83,7 @@ export default function RaceDetailPage() {
         raceState.reload();
       }
     },
-    [raceState]
+    [raceState, setJobId]
   );
 
   const job = useIngestionJob(jobId, onJobComplete);
@@ -90,7 +104,7 @@ export default function RaceDetailPage() {
       const { body } = describeError(err);
       setJobError(body);
     }
-  }, [raceId]);
+  }, [raceId, setJobId]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,10 +136,11 @@ export default function RaceDetailPage() {
         stageIndex={job.stageIndex}
         elapsedSeconds={job.elapsedSeconds}
         failed={job.isFailed}
+        overdue={job.isOverdue}
         error={job.error}
         log={job.log}
         onRetry={startIngest}
-        onDismiss={() => setDismissed(true)}
+        onDismiss={() => (job.isFailed ? setJobId(null) : setDismissed(true))}
       />
     </div>
   );
@@ -292,24 +307,42 @@ function ReportSection({
   raceId: string;
   eventName: string;
 }) {
-  const [generating, setGenerating] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [genError, setGenError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  // Generation is a backend job. Its id lives in the URL, like ingestion jobs.
+  const [reportJobId, setReportJobId] = useUrlParam("reportJob", isValidJobId);
 
   const load = useCallback(() => getRaceReport(raceId), [raceId]);
   const state = useAsync<Report>(load, [raceId]);
 
+  const onReportDone = useCallback(
+    (ok: boolean) => {
+      if (ok) {
+        setReportJobId(null);
+        state.reload();
+      }
+    },
+    [setReportJobId, state]
+  );
+
+  const reportJob = useIngestionJob(reportJobId, onReportDone);
+
   const onGenerate = useCallback(async () => {
-    setGenerating(true);
+    setStarting(true);
     setGenError(null);
+    setDismissed(false);
     try {
-      await generateReport(raceId);
-      state.reload();
+      const { job_id } = await generateReport(raceId);
+      setReportJobId(job_id);
     } catch (err) {
       setGenError(describeError(err).body);
     } finally {
-      setGenerating(false);
+      setStarting(false);
     }
-  }, [raceId, state]);
+  }, [raceId, setReportJobId]);
+
+  const generating = starting || reportJob.isActive;
 
   // A missing report is the normal case for a historic race, not an error.
   const missing = state.status === "error" && isNotFound(state.error);
@@ -359,6 +392,21 @@ function ReportSection({
           )}
         </AsyncBoundary>
       )}
+
+      <LoadingPit
+        active={reportJob.isActive && !dismissed}
+        stage={reportJob.stage}
+        stageIndex={reportJob.stageIndex}
+        elapsedSeconds={reportJob.elapsedSeconds}
+        failed={reportJob.isFailed}
+        overdue={reportJob.isOverdue}
+        error={reportJob.error}
+        log={reportJob.log}
+        onRetry={onGenerate}
+        onDismiss={() =>
+          reportJob.isFailed ? setReportJobId(null) : setDismissed(true)
+        }
+      />
     </Panel>
   );
 }

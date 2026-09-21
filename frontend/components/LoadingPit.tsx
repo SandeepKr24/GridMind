@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import { JOB_STAGES, STAGE_LABELS, type JobStage } from "@/lib/api/types";
 import { useSettings } from "@/components/SettingsProvider";
 import { Button } from "@/components/ui/primitives";
@@ -25,6 +25,8 @@ export interface LoadingPitProps {
   stageIndex: number;
   elapsedSeconds: number;
   failed?: boolean;
+  /** Still running but well past a normal cold fetch. Distinct from failed. */
+  overdue?: boolean;
   error?: string | null;
   log?: { at: string; text: string }[];
   /** Headline override. Defaults to the current stage's message. */
@@ -46,6 +48,7 @@ export function LoadingPit({
   stageIndex,
   elapsedSeconds,
   failed = false,
+  overdue = false,
   error,
   log = [],
   message,
@@ -55,6 +58,19 @@ export function LoadingPit({
 }: LoadingPitProps) {
   const { soundEnabled, beepForStage, reducedMotion } = useSettings();
   const lastBeepedStage = useRef<number>(-1);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Move focus into the dialog when it opens, and hand it back when it closes,
+  // so keyboard users are never left focused on a control behind the overlay.
+  useEffect(() => {
+    if (!active) return;
+    const previous =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.focus();
+    return () => {
+      if (previous && document.contains(previous)) previous.focus();
+    };
+  }, [active]);
 
   // One beep per stage transition — never a loop during a long fetch.
   useEffect(() => {
@@ -72,14 +88,50 @@ export function LoadingPit({
 
   if (!active) return null;
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && onDismiss) {
+      event.preventDefault();
+      onDismiss();
+      return;
+    }
+    if (event.key !== "Tab" || !dialogRef.current) return;
+
+    // Keep Tab cycling inside the dialog.
+    const focusable = Array.from(
+      dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
+      )
+    );
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    const current = document.activeElement;
+    if (event.shiftKey && (current === first || current === dialogRef.current)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && current === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   const isLongFetch =
     stage === "fetching" && elapsedSeconds > LONG_FETCH_THRESHOLD_SECONDS;
 
-  const headline = failed ? "JOB FAILED" : message ?? `${STAGE_LABELS[stage]}...`;
+  const headline = failed
+    ? "JOB FAILED"
+    : overdue
+      ? "TAKING LONGER THAN EXPECTED"
+      : message ?? `${STAGE_LABELS[stage]}...`;
 
   const subline = failed
     ? error ?? "The timing data for that session could not be retrieved."
-    : isLongFetch
+    : overdue
+      ? `Still on stage ${stageIndex + 1} after ${Math.floor(elapsedSeconds)}s. The job may still finish — keep waiting, or run it in the background and check back.`
+      : isLongFetch
       ? `Large session — still fetching. Working, not frozen. ${Math.floor(elapsedSeconds)}s elapsed.`
       : `Stage ${stageIndex + 1} of ${JOB_STAGES.length} · lights advance on backend stages`;
 
@@ -90,7 +142,12 @@ export function LoadingPit({
       aria-label="Loading"
       className="fixed inset-0 z-[90] flex animate-fade items-center justify-center bg-surface-overlay p-5"
     >
-      <div className="relative w-full max-w-[660px] overflow-hidden border border-line bg-[#0C0E11]">
+      <div
+        ref={dialogRef}
+        tabIndex={-1}
+        onKeyDown={handleKeyDown}
+        className="relative w-full max-w-[660px] overflow-hidden border border-line bg-[#0C0E11] focus:outline-none"
+      >
         {!reducedMotion && !failed ? (
           <div
             className="absolute left-0 top-0 h-0.5 w-[30%] animate-sweep-fast bg-gradient-to-r from-transparent via-accent to-transparent"
@@ -124,7 +181,7 @@ export function LoadingPit({
         <div className="px-[clamp(20px,4vw,34px)] pb-5 text-center">
           <div
             className={`font-display text-[clamp(20px,4vw,28px)] uppercase tracking-[0.14em] ${
-              failed ? "text-status-pending" : "text-ink"
+              failed || overdue ? "text-status-pending" : "text-ink"
             }`}
           >
             {headline}
@@ -168,7 +225,11 @@ export function LoadingPit({
         region is an accessibility failure rather than a missing nicety.
       */}
       <div aria-live="polite" className="gm-sr-only">
-        {failed ? `Loading failed. ${error ?? ""}` : STAGE_LABELS[stage]}
+        {failed
+          ? `Loading failed. ${error ?? ""}`
+          : overdue
+            ? `Taking longer than expected. Still ${STAGE_LABELS[stage].toLowerCase()}.`
+            : STAGE_LABELS[stage]}
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { Suspense, useCallback, useRef, useState } from "react";
 import { sendChatMessage } from "@/lib/api/chat";
-import { describeError } from "@/lib/api/client";
+import { ApiError, describeError } from "@/lib/api/client";
 import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
+import { isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
 import { LoadingPit } from "@/components/LoadingPit";
 import { ChatMessageView } from "@/components/chat/ChatMessage";
 import {
@@ -21,17 +22,54 @@ const SUGGESTIONS = [
   "Who has the most points this season?",
 ];
 
+/**
+ * While an ingestion job runs, the question waiting on it is kept in
+ * sessionStorage, keyed by job id. The job id itself lives in the URL. Together
+ * they let a refresh mid-ingest reattach to the job and still answer the
+ * original question once the data lands.
+ */
+const PENDING_PREFIX = "gm.chat.pending.";
+const MAX_QUESTION_LENGTH = 500;
+
+function savePendingQuestion(jobId: string, question: string) {
+  try {
+    window.sessionStorage.setItem(PENDING_PREFIX + jobId, question);
+  } catch {
+    // Storage blocked. A refresh mid-ingest then loses the question — the job
+    // still completes and the data is stored, the user just re-asks.
+  }
+}
+
+function takePendingQuestion(jobId: string): string | null {
+  try {
+    const value = window.sessionStorage.getItem(PENDING_PREFIX + jobId);
+    window.sessionStorage.removeItem(PENDING_PREFIX + jobId);
+    return value && value.length <= MAX_QUESTION_LENGTH ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 let messageCounter = 0;
 const nextId = () => `m${++messageCounter}`;
 
+/** Suspense is required: the page reads the job id with useSearchParams. */
 export default function ChatPage() {
+  return (
+    <Suspense fallback={<SkeletonRows count={4} />}>
+      <ChatContent />
+    </Suspense>
+  );
+}
+
+function ChatContent() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<string[]>([]);
   const [input, setInput] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<{ title: string; body: string } | null>(null);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const [jobId, setJobId] = useUrlParam("job", isValidJobId);
 
   const conversationId = useRef<string | null>(null);
   const lastQuestion = useRef<string | null>(null);
@@ -57,9 +95,31 @@ export default function ChatPage() {
     ]);
   }, []);
 
+  /**
+   * Conversations live only in the backend's memory, so a backend restart
+   * forgets them. The backend answers an unknown conversation id with 404; when
+   * that happens we drop the id and ask again as a fresh conversation, rather
+   * than showing the user an error for something they did not cause.
+   */
+  const send = useCallback(async (question: string): Promise<ChatResponse> => {
+    try {
+      return await sendChatMessage(question, conversationId.current);
+    } catch (err) {
+      if (
+        err instanceof ApiError &&
+        err.kind === "not_found" &&
+        conversationId.current !== null
+      ) {
+        conversationId.current = null;
+        return sendChatMessage(question, null);
+      }
+      throw err;
+    }
+  }, []);
+
   const ask = useCallback(
     async (question: string, isRetry = false) => {
-      const q = question.trim();
+      const q = question.trim().slice(0, MAX_QUESTION_LENGTH);
       if (!q || pending) return;
 
       setError(null);
@@ -68,20 +128,18 @@ export default function ChatPage() {
       lastQuestion.current = q;
 
       if (!isRetry) {
-        setMessages((prev) => [
-          ...prev,
-          { id: nextId(), role: "user", text: q },
-        ]);
+        setMessages((prev) => [...prev, { id: nextId(), role: "user", text: q }]);
         setHistory((prev) => [...prev, q].slice(-8));
       }
 
       setPending(true);
       try {
-        const res = await sendChatMessage(q, conversationId.current);
+        const res = await send(q);
 
         // Ingestion required: the backend returned early with a job id. Show the
         // Loading Pit, then re-ask once the data has landed.
         if (res.ingestion?.required && res.ingestion.job_id) {
+          savePendingQuestion(res.ingestion.job_id, q);
           setJobId(res.ingestion.job_id);
           return;
         }
@@ -93,27 +151,38 @@ export default function ChatPage() {
         setPending(false);
       }
     },
-    [pending, appendAssistant]
+    [pending, send, appendAssistant, setJobId]
   );
 
   const onJobComplete = useCallback(
     (ok: boolean) => {
+      // On failure, keep the job in the URL (the Loading Pit shows the failure)
+      // and the question in storage (so Retry still knows what was asked).
+      if (!jobId || !ok) return;
+      const restored = takePendingQuestion(jobId);
+
       setJobId(null);
-      if (ok && lastQuestion.current) {
-        // The session is stored now, so the same question resolves warm.
+      // Asked in this page's lifetime: the user message is already on screen.
+      if (lastQuestion.current) {
         void ask(lastQuestion.current, true);
+      } else if (restored) {
+        // Reattached after a refresh: nothing is on screen yet, so show it.
+        void ask(restored);
       }
     },
-    [ask]
+    [jobId, setJobId, ask]
   );
 
   const job = useIngestionJob(jobId, onJobComplete);
 
   const retry = useCallback(() => {
+    // After a refresh, the question only survives in storage.
+    const restored = jobId ? takePendingQuestion(jobId) : null;
     setError(null);
     setJobId(null);
     if (lastQuestion.current) void ask(lastQuestion.current, true);
-  }, [ask]);
+    else if (restored) void ask(restored);
+  }, [ask, jobId, setJobId]);
 
   const isEmpty = messages.length === 0 && !error;
 
@@ -180,6 +249,7 @@ export default function ChatPage() {
               id="chat-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              maxLength={MAX_QUESTION_LENGTH}
               placeholder="Ask anything about F1..."
               disabled={pending}
               className="flex-1 border-0 bg-transparent px-2 py-2.5 text-[15px] text-ink placeholder:text-ink-trace focus:outline-none disabled:opacity-50"
@@ -202,10 +272,11 @@ export default function ChatPage() {
         stageIndex={job.stageIndex}
         elapsedSeconds={job.elapsedSeconds}
         failed={job.isFailed}
+        overdue={job.isOverdue}
         error={job.error}
         log={job.log}
         onRetry={retry}
-        onDismiss={() => setDismissed(true)}
+        onDismiss={() => (job.isFailed ? setJobId(null) : setDismissed(true))}
       />
     </div>
   );

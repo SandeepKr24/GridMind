@@ -26,6 +26,13 @@ import {
 const POLL_INTERVAL_MS = 1500;
 const ELAPSED_TICK_MS = 250;
 
+/**
+ * A cold fetch normally lands inside 30-120s. Past this point the job is still
+ * running but overdue, which the UI reports differently from a failure: the job
+ * may yet finish, so the right message is "taking longer", not "broken".
+ */
+const OVERDUE_AFTER_SECONDS = 150;
+
 export interface JobProgress {
   job: IngestionJob | null;
   stage: JobStage;
@@ -33,6 +40,8 @@ export interface JobProgress {
   elapsedSeconds: number;
   isActive: boolean;
   isFailed: boolean;
+  /** Still running, but well past a normal cold fetch. Not a failure. */
+  isOverdue: boolean;
   error: string | null;
   /** Stage transitions, newest last — rendered as the Loading Pit log. */
   log: { at: string; text: string }[];
@@ -66,6 +75,10 @@ export function useIngestionJob(
     setState(EMPTY);
   }
 
+  // When the backend reports when the job started, elapsed time is measured from
+  // that — so a page that reattaches after a refresh shows the true duration.
+  const backendStartRef = useRef<number | null>(null);
+
   // Keep the callback current without restarting polling every render.
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
@@ -75,11 +88,13 @@ export function useIngestionJob(
   // Local elapsed ticker. Proves liveness during a long fetch; never drives stages.
   useEffect(() => {
     if (!jobId) return;
-    const startedAt = Date.now();
+    backendStartRef.current = null;
+    const attachedAt = Date.now();
     const timer = setInterval(() => {
+      const base = backendStartRef.current ?? attachedAt;
       setState((prev) => ({
         ...prev,
-        elapsedSeconds: (Date.now() - startedAt) / 1000,
+        elapsedSeconds: Math.max(0, (Date.now() - base) / 1000),
       }));
     }, ELAPSED_TICK_MS);
     return () => clearInterval(timer);
@@ -106,6 +121,11 @@ export function useIngestionJob(
       try {
         const next = await getJob(jobId);
         if (cancelled) return;
+
+        if (next.started_at && backendStartRef.current === null) {
+          const parsed = Date.parse(next.started_at);
+          if (Number.isFinite(parsed)) backendStartRef.current = parsed;
+        }
 
         setState((prev) => {
           let updated: JobState = { ...prev, job: next, error: null };
@@ -160,6 +180,10 @@ export function useIngestionJob(
     elapsedSeconds: state.elapsedSeconds,
     isActive: Boolean(jobId) && !finished,
     isFailed,
+    isOverdue:
+      Boolean(jobId) &&
+      !finished &&
+      state.elapsedSeconds > OVERDUE_AFTER_SECONDS,
     error: isFailed
       ? state.job?.error_message ?? "The ingestion job failed."
       : state.error,

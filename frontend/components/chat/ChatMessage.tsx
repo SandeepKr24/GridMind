@@ -1,6 +1,8 @@
 "use client";
 
 import { SESSION_LABELS, type ChatMessage as Message } from "@/lib/api/types";
+import { barSeriesFromTable } from "@/lib/chartFromTable";
+import { ChatBars } from "@/components/chat/ChatBars";
 
 /**
  * A single conversation turn.
@@ -11,6 +13,7 @@ import { SESSION_LABELS, type ChatMessage as Message } from "@/lib/api/types";
  */
 export function ChatMessageView({ message }: { message: Message }) {
   const isUser = message.role === "user";
+  const series = isUser ? null : barSeriesFromTable(message.table);
 
   return (
     <div
@@ -29,6 +32,8 @@ export function ChatMessageView({ message }: { message: Message }) {
       >
         {message.text}
       </p>
+
+      {series ? <ChatBars series={series} /> : null}
 
       {message.table && message.table.rows.length > 0 ? (
         <div className="mt-4 overflow-x-auto">
