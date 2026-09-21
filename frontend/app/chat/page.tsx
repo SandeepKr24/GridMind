@@ -1,0 +1,240 @@
+"use client";
+
+import { useCallback, useRef, useState } from "react";
+import { sendChatMessage } from "@/lib/api/chat";
+import { describeError } from "@/lib/api/client";
+import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
+import { LoadingPit } from "@/components/LoadingPit";
+import { ChatMessageView } from "@/components/chat/ChatMessage";
+import {
+  Button,
+  ErrorState,
+  Panel,
+  SkeletonRows,
+} from "@/components/ui/primitives";
+import type { ChatMessage, ChatResponse } from "@/lib/api/types";
+
+const SUGGESTIONS = [
+  "Who gained the most positions at Monza?",
+  "Which drivers used a one-stop strategy at Spa?",
+  "Compare Norris and Leclerc's race pace.",
+  "Who has the most points this season?",
+];
+
+let messageCounter = 0;
+const nextId = () => `m${++messageCounter}`;
+
+export default function ChatPage() {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [history, setHistory] = useState<string[]>([]);
+  const [input, setInput] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<{ title: string; body: string } | null>(null);
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+
+  const conversationId = useRef<string | null>(null);
+  const lastQuestion = useRef<string | null>(null);
+
+  const appendAssistant = useCallback((res: ChatResponse) => {
+    if (res.conversation_id) conversationId.current = res.conversation_id;
+
+    const text = res.needs_clarification
+      ? res.clarifying_question ?? "Which race did you mean?"
+      : res.answer;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: nextId(),
+        role: "assistant",
+        text,
+        entities: res.needs_clarification ? null : res.resolved_entities,
+        table: res.table,
+        sources: res.sources,
+        isClarification: res.needs_clarification,
+      },
+    ]);
+  }, []);
+
+  const ask = useCallback(
+    async (question: string, isRetry = false) => {
+      const q = question.trim();
+      if (!q || pending) return;
+
+      setError(null);
+      setInput("");
+      setDismissed(false);
+      lastQuestion.current = q;
+
+      if (!isRetry) {
+        setMessages((prev) => [
+          ...prev,
+          { id: nextId(), role: "user", text: q },
+        ]);
+        setHistory((prev) => [...prev, q].slice(-8));
+      }
+
+      setPending(true);
+      try {
+        const res = await sendChatMessage(q, conversationId.current);
+
+        // Ingestion required: the backend returned early with a job id. Show the
+        // Loading Pit, then re-ask once the data has landed.
+        if (res.ingestion?.required && res.ingestion.job_id) {
+          setJobId(res.ingestion.job_id);
+          return;
+        }
+
+        appendAssistant(res);
+      } catch (err) {
+        setError(describeError(err));
+      } finally {
+        setPending(false);
+      }
+    },
+    [pending, appendAssistant]
+  );
+
+  const onJobComplete = useCallback(
+    (ok: boolean) => {
+      setJobId(null);
+      if (ok && lastQuestion.current) {
+        // The session is stored now, so the same question resolves warm.
+        void ask(lastQuestion.current, true);
+      }
+    },
+    [ask]
+  );
+
+  const job = useIngestionJob(jobId, onJobComplete);
+
+  const retry = useCallback(() => {
+    setError(null);
+    setJobId(null);
+    if (lastQuestion.current) void ask(lastQuestion.current, true);
+  }, [ask]);
+
+  const isEmpty = messages.length === 0 && !error;
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
+      <aside className="hidden lg:block">
+        <div className="gm-label mb-3">This session</div>
+        {history.length === 0 ? (
+          <p className="m-0 text-xs leading-relaxed text-ink-trace">
+            Questions you ask appear here. Conversations are not saved — they end
+            when you close the tab.
+          </p>
+        ) : (
+          <ol className="flex list-none flex-col gap-2 p-0">
+            {history.map((q, i) => (
+              <li key={`${q}-${i}`}>
+                <button
+                  type="button"
+                  onClick={() => void ask(q)}
+                  className="w-full text-left text-xs leading-snug text-ink-ghost hover:text-ink"
+                >
+                  {q}
+                </button>
+              </li>
+            ))}
+          </ol>
+        )}
+      </aside>
+
+      <div className="flex min-h-[70vh] flex-col gap-5">
+        <div className="flex-1">
+          {isEmpty ? (
+            <EmptyChat onPick={(q) => void ask(q)} />
+          ) : (
+            <div className="flex flex-col gap-7">
+              {messages.map((m) => (
+                <ChatMessageView key={m.id} message={m} />
+              ))}
+              {pending && !jobId ? (
+                <div className="border-l-2 border-accent pl-4">
+                  <div className="gm-label mb-2">RACE ANALYST</div>
+                  <SkeletonRows count={2} />
+                </div>
+              ) : null}
+              {error ? (
+                <ErrorState title={error.title} body={error.body} onRetry={retry} />
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        <Panel className="sticky bottom-4 p-3">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void ask(input);
+            }}
+            className="flex gap-2.5"
+          >
+            <label htmlFor="chat-input" className="gm-sr-only">
+              Ask about a Formula 1 race
+            </label>
+            <input
+              id="chat-input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ask anything about F1..."
+              disabled={pending}
+              className="flex-1 border-0 bg-transparent px-2 py-2.5 text-[15px] text-ink placeholder:text-ink-trace focus:outline-none disabled:opacity-50"
+            />
+            <Button type="submit" variant="quiet" disabled={pending || !input.trim()}>
+              SEND
+            </Button>
+          </form>
+        </Panel>
+
+        <p className="m-0 text-center font-mono text-[10px] tracking-[0.08em] text-ink-trace">
+          The first question about a session takes 30–120s while the timing data is
+          fetched. After that it is instant.
+        </p>
+      </div>
+
+      <LoadingPit
+        active={job.isActive && !dismissed}
+        stage={job.stage}
+        stageIndex={job.stageIndex}
+        elapsedSeconds={job.elapsedSeconds}
+        failed={job.isFailed}
+        error={job.error}
+        log={job.log}
+        onRetry={retry}
+        onDismiss={() => setDismissed(true)}
+      />
+    </div>
+  );
+}
+
+function EmptyChat({ onPick }: { onPick: (q: string) => void }) {
+  return (
+    <div className="animate-fade">
+      <h1 className="m-0 font-display text-[clamp(30px,5vw,48px)] font-bold uppercase leading-none">
+        Ask the Race Analyst
+      </h1>
+      <p className="mt-3 max-w-[520px] text-[15px] leading-relaxed text-ink-muted text-pretty">
+        I can explore race results, driver performance, strategy, tyres, pit stops
+        and season standings. Every number comes from stored timing data — if it is
+        not in the database, I will say so rather than guess.
+      </p>
+
+      <div className="mt-7 flex flex-col gap-px bg-line-faint">
+        {SUGGESTIONS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onPick(s)}
+            className="bg-surface-inset px-4 py-3.5 text-left text-sm text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    @apply bg-surface-base text-ink font-body antialiased;
+    margin: 0;
+    padding: 0;
+  }
+
+  ::selection {
+    background: #e8112d;
+    color: #fff;
+  }
+
+  /* Visible focus is non-negotiable — keyboard users need to see where they are. */
+  :focus-visible {
+    outline: 2px solid #e8112d;
+    outline-offset: 2px;
+  }
+
+  /*
+   * Honour the OS reduced-motion setting globally as a safety net, so a component
+   * that forgets to check the hook still cannot spin, sweep or pulse at someone.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .gm-label {
+    @apply font-mono text-[10px] uppercase tracking-[0.16em] text-ink-ghost;
+  }
+
+  .gm-heading {
+    @apply font-display uppercase tracking-[0.16em] text-ink-dim;
+  }
+
+  /* Screen-reader-only, used for the Loading Pit live region. */
+  .gm-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
