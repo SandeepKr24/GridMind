@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health
+from app.api.routes import health, races
 from app.config import Settings
 from app.db.database import Database
 from app.runtime import configure_event_loop
@@ -55,4 +55,5 @@ def create_app(
     )
 
     app.include_router(health.router)
+    app.include_router(races.router)
     return app
