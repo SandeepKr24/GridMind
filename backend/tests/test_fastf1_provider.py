@@ -13,7 +13,7 @@ import pandas as pd
 import pytest
 
 from app.db.models.enums import SessionType
-from app.ingestion.base import RawDriverEntry, SessionNotAvailableError
+from app.ingestion.base import ProviderError, RawDriverEntry, SessionNotAvailableError
 from app.ingestion.fastf1_provider import (
     SESSION_IDENTIFIERS,
     FastF1Provider,
@@ -347,3 +347,31 @@ class TestFailures:
         with pytest.raises(SessionNotAvailableError):
             # Reach past the network by handing fetch_session its session.
             provider._require_classification(Empty(), 2030, 1, SessionType.RACE)
+
+
+class TestScheduleFailures:
+    @pytest.fixture
+    def schedule(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import fastf1
+
+        frame = pd.DataFrame([{"RoundNumber": 1, "EventName": "Test GP", "EventDate": None}])
+        monkeypatch.setattr(fastf1, "get_event_schedule", lambda *_, **__: frame)
+        monkeypatch.setattr("app.ingestion.fastf1_provider.enable_cache", lambda _: None)
+
+    @pytest.mark.usefixtures("schedule")
+    def test_a_row_that_cannot_be_read_is_a_provider_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The calendar route degrades on ProviderError. Anything else escaping
+        # from row parsing would turn one odd row into a 500 for the season.
+        def broken(*_: Any) -> None:
+            raise ValueError("unexpected column shape")
+
+        monkeypatch.setattr("app.ingestion.fastf1_provider._event_from_row", broken)
+        with pytest.raises(ProviderError, match="unexpected column shape"):
+            PROVIDER.fetch_schedule(2030)
+
+    @pytest.mark.usefixtures("schedule")
+    def test_a_readable_schedule_still_parses(self) -> None:
+        events = PROVIDER.fetch_schedule(2030)
+        assert [(e.round_number, e.event_name) for e in events] == [(1, "Test GP")]

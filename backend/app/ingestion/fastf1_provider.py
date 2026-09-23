@@ -157,12 +157,17 @@ class FastF1Provider:
         except Exception as error:
             raise ProviderError(f"could not load the {season} calendar: {error}") from error
 
-        events = [
-            _event_from_row(season, row)
-            for _, row in schedule.iterrows()
-            # Round 0 is pre-season testing, which we do not store.
-            if (to_int(row.get("RoundNumber")) or 0) > 0
-        ]
+        try:
+            events = [
+                _event_from_row(season, row)
+                for _, row in schedule.iterrows()
+                # Round 0 is pre-season testing, which we do not store.
+                if (to_int(row.get("RoundNumber")) or 0) > 0
+            ]
+        except Exception as error:
+            # One unreadable row must reach callers as a provider failure they
+            # can degrade on, not as an arbitrary pandas exception.
+            raise ProviderError(f"could not read the {season} calendar: {error}") from error
         if not events:
             raise ProviderError(f"the {season} calendar is empty")
         return tuple(events)

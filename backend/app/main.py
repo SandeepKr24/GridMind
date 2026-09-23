@@ -7,6 +7,7 @@ import time.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -17,6 +18,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import health, races
 from app.config import Settings
 from app.db.database import Database
+from app.ingestion.fastf1_provider import FastF1Provider
+from app.ingestion.schedule import ScheduleCache, ScheduleSource
 from app.runtime import configure_event_loop
 
 logger = logging.getLogger(__name__)
@@ -25,16 +28,22 @@ logger = logging.getLogger(__name__)
 def create_app(
     settings: Settings | None = None,
     database: Database | None = None,
+    schedules: ScheduleSource | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
     settings = settings or Settings()  # type: ignore[call-arg]
     db = database if database is not None else Database(settings)
+    calendar = schedules or ScheduleCache(
+        FastF1Provider(settings.fastf1_cache_dir),
+        ttl=dt.timedelta(hours=settings.schedule_cache_ttl_hours),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.settings = settings
         app.state.database = db
+        app.state.schedules = calendar
         yield
         # Connections left open delay Neon's suspend, which costs compute time.
         await db.dispose()

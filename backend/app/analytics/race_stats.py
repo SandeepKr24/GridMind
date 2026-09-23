@@ -46,6 +46,7 @@ from app.db.models import (
     SessionResult,
 )
 from app.db.models.enums import SessionType
+from app.ingestion.base import RawEvent
 
 #: Race control categories that mean the safety car was deployed.
 SAFETY_CAR_FLAGS = ("SAFETY CAR", "VIRTUAL SAFETY CAR")
@@ -61,7 +62,11 @@ def _race_session() -> Select[tuple[int, int, int]]:
     )
 
 
-def _state(ingested_at: dt.datetime | None, event_date: dt.date | None) -> str:
+def _state(
+    ingested_at: dt.datetime | None,
+    event_date: dt.date | None,
+    today: dt.date | None = None,
+) -> str:
     """The three-state badge on the race list.
 
     `ingested` means the timing data is stored and questions are instant.
@@ -70,18 +75,18 @@ def _state(ingested_at: dt.datetime | None, event_date: dt.date | None) -> str:
     """
     if ingested_at is not None:
         return "ingested"
-    today = dt.datetime.now(dt.UTC).date()
+    today = today or dt.datetime.now(dt.UTC).date()
     if event_date is not None and event_date > today:
         return "upcoming"
     return "available"
 
 
 async def get_calendar(connection: AsyncConnection, season: int) -> list[CalendarRound]:
-    """The season's rounds, with what we hold for each.
+    """The season's stored rounds, with what we hold for each.
 
-    Built only from stored meetings. A season nobody has asked about yet
-    returns an empty list rather than a fabricated calendar — fetching the real
-    one is the ingestion path's job.
+    Only what is in the database. The route merges this with the published
+    schedule (`merge_calendar`) so that rounds nobody has asked about still
+    appear.
     """
     race = Session.__table__.alias("race_session")
     statement = (
@@ -125,6 +130,66 @@ async def get_calendar(connection: AsyncConnection, season: int) -> list[Calenda
         )
         for row in rows
     ]
+
+
+def merge_calendar(
+    schedule: tuple[RawEvent, ...],
+    stored: list[CalendarRound],
+    *,
+    today: dt.date | None = None,
+) -> list[CalendarRound]:
+    """The full season: every scheduled round, with storage winning where it has one.
+
+    A stored round is kept even if the schedule lacks it — a provider hiccup
+    must not hide a race we hold. With no schedule at all this degrades to the
+    stored rounds alone.
+    """
+    by_round = {row.round: row for row in stored}
+    merged = [
+        by_round.pop(event.round_number)
+        if event.round_number in by_round
+        else _round_from_event(event, today)
+        for event in schedule
+    ]
+    merged.extend(by_round.values())
+    return sorted(merged, key=lambda row: row.round)
+
+
+def _round_from_event(event: RawEvent, today: dt.date | None) -> CalendarRound:
+    return CalendarRound(
+        season=event.season,
+        round=event.round_number,
+        event_name=event.event_name,
+        circuit_name=event.location or event.event_name,
+        country=event.country,
+        event_date=iso(event.event_date) or "",
+        state=_state(None, event.event_date, today),  # type: ignore[arg-type]
+        total_laps=None,
+    )
+
+
+def race_from_schedule(event: RawEvent, today: dt.date | None = None) -> RaceDetail:
+    """A race we know of but hold no data for: the header only.
+
+    Every timing field is null rather than guessed. The detail page shows this
+    with the option to fetch it.
+    """
+    return RaceDetail(
+        id=race_id(event.season, event.round_number),
+        season=event.season,
+        round=event.round_number,
+        event_name=event.event_name,
+        circuit_name=event.location or event.event_name,
+        event_date=iso(event.event_date) or "",
+        state=_state(None, event.event_date, today),  # type: ignore[arg-type]
+        winner_name=None,
+        has_report=False,
+        total_laps=None,
+        fastest_lap_time=None,
+        fastest_lap_driver=None,
+        safety_car_periods=None,
+        winning_margin=None,
+    )
 
 
 async def _lap_counts(connection: AsyncConnection, session_ids: list[int]) -> dict[int, int]:

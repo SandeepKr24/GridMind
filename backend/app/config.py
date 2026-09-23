@@ -67,6 +67,9 @@ class Settings(BaseSettings):
     max_concurrent_ingestion_jobs: int = Field(default=2, gt=0)
     ingestion_job_timeout_seconds: int = Field(default=300, gt=0)
     max_sessions_per_question: int = Field(default=2, gt=0)
+    # How long a season's calendar is held in memory before re-checking for
+    # cancelled or moved rounds.
+    schedule_cache_ttl_hours: int = Field(default=12, gt=0)
 
     # --- Standings ------------------------------------------------------
     jolpica_base_url: str = "https://api.jolpi.ca/ergast/f1"

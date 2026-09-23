@@ -22,6 +22,7 @@ from app.api.schemas.race import (
     RaceDetail,
     RaceStats,
 )
+from app.ingestion.schedule import FIRST_SEASON
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +30,6 @@ router = APIRouter(prefix="/api", tags=["races"])
 
 RACE_ID = re.compile(r"^(\d{4})-(\d{1,2})$")
 
-# FastF1's timing coverage starts in 2018; the frontend's season picker agrees.
-FIRST_SEASON = 2018
 LAST_SEASON = 2100
 
 
@@ -51,24 +50,29 @@ def parse_race_id(raw: str) -> tuple[int, int]:
 
 @router.get("/seasons/{season}/calendar", response_model=list[CalendarRound])
 async def calendar(season: int, request: Request) -> list[CalendarRound]:
-    """Rounds we hold for a season.
+    """Every round of a season, each marked ingested, available or upcoming.
 
-    An empty list is a valid answer, not an error: the database starts empty
-    and fills as people ask questions.
+    Needs no ingestion: the schedule comes from the provider and storage only
+    upgrades the rounds we hold. If the schedule cannot be fetched this is just
+    the stored rounds, and an empty list is still a valid answer.
     """
     async with request.app.state.database.connect(read_only=True) as connection:
-        return await race_stats.get_calendar(connection, season)
+        stored = await race_stats.get_calendar(connection, season)
+    schedule = await request.app.state.schedules.get(season)
+    return race_stats.merge_calendar(schedule, stored)
 
 
 @router.get("/dashboard", response_model=DashboardSummary)
 async def dashboard(request: Request, season: int = Query(...)) -> DashboardSummary:
     async with request.app.state.database.connect(read_only=True) as connection:
         data = await race_stats.get_dashboard(connection, season)
+    schedule = await request.app.state.schedules.get(season)
 
     return DashboardSummary(
         season=data.season,
         rounds_ingested=data.rounds_ingested,
-        rounds_on_calendar=data.rounds_on_calendar,
+        # Stored meetings undercount: most of a season is never asked about.
+        rounds_on_calendar=max(data.rounds_on_calendar, len(schedule)),
         laps_stored=data.laps_stored,
         # Reports are not implemented yet. Zero is the truth, not a placeholder.
         reports_written=0,
@@ -83,9 +87,13 @@ async def race_detail(race: str, request: Request) -> RaceDetail:
     season, round_number = parse_race_id(race)
     async with request.app.state.database.connect(read_only=True) as connection:
         detail = await race_stats.get_race(connection, season, round_number)
-    if detail is None:
-        raise HTTPException(status_code=404, detail="Race not stored")
-    return detail
+    if detail is not None:
+        return detail
+    # Not stored, but it may be on the calendar: the page offers the fetch.
+    for event in await request.app.state.schedules.get(season):
+        if event.round_number == round_number:
+            return race_stats.race_from_schedule(event)
+    raise HTTPException(status_code=404, detail="Unknown race")
 
 
 @router.get("/races/{race}/stats", response_model=RaceStats)
