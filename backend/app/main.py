@@ -16,11 +16,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import health, jobs, races
+from app.api.routes import standings as standings_routes
 from app.config import Settings
 from app.db.database import Database
 from app.ingestion.fastf1_provider import FastF1Provider
 from app.ingestion.runner import JobRunner, PostgresJobStore
 from app.ingestion.schedule import ScheduleCache, ScheduleSource
+from app.ingestion.standings_provider import JolpicaClient
+from app.ingestion.standings_service import PostgresStandingsStore, StandingsService
 from app.runtime import configure_event_loop
 
 logger = logging.getLogger(__name__)
@@ -31,6 +34,7 @@ def create_app(
     database: Database | None = None,
     schedules: ScheduleSource | None = None,
     runner: JobRunner | None = None,
+    standings: StandingsService | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
@@ -47,6 +51,11 @@ def create_app(
         max_pending=settings.max_pending_ingestion_jobs,
         timeout_seconds=settings.ingestion_job_timeout_seconds,
     )
+    championship = standings or StandingsService(
+        PostgresStandingsStore(db),
+        JolpicaClient(settings.jolpica_base_url),
+        ttl=dt.timedelta(hours=settings.standings_cache_ttl_hours),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -54,6 +63,7 @@ def create_app(
         app.state.database = db
         app.state.schedules = calendar
         app.state.runner = ingestion
+        app.state.standings = championship
         yield
         # Cancelled jobs keep live rows; the next process fails them as orphans.
         await ingestion.shutdown()
@@ -78,4 +88,5 @@ def create_app(
     app.include_router(health.router)
     app.include_router(races.router)
     app.include_router(jobs.router)
+    app.include_router(standings_routes.router)
     return app
