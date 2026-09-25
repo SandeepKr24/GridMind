@@ -280,6 +280,23 @@ class TestFailures:
         assert KEY not in str(caught.value)
         assert len(recorder.requests) == 1
 
+    async def test_schema_failure_logs_what_the_model_produced(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        body = {
+            "error": {
+                "message": "Failed to validate JSON.",
+                "code": "json_validate_failed",
+                "failed_generation": '{"sql": "SELECT',
+            }
+        }
+        recorder = Recorder(httpx.Response(400, json=body))
+
+        with pytest.raises(LLMInvalidResponseError):
+            await provider(recorder).complete(QUESTION)
+
+        assert '{"sql": "SELECT' in caplog.text
+
     async def test_schema_validation_failure_is_an_invalid_response(self) -> None:
         recorder = Recorder(error(400, "did not match schema", code="json_validate_failed"))
 

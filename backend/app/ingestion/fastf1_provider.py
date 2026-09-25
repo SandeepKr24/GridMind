@@ -12,6 +12,7 @@ upstream API.
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -39,6 +40,40 @@ from app.ingestion.convert import (
 )
 
 logger = logging.getLogger(__name__)
+
+#: FastF1 fills an unknown tyre with a placeholder string instead of leaving
+#: it empty. Stored as-is, "None" would read as a sixth compound.
+UNKNOWN_COMPOUNDS = frozenset({"NONE", "NAN", "UNKNOWN", "TEST_UNKNOWN"})
+
+
+#: FIA wording for a single car: "CAR 4 (NOR) TIME 1:50.504 DELETED ...".
+#: "CARS 23 (ALB) AND 4 (NOR)" does not match, and stays unattributed.
+_ONE_CAR = re.compile(r"\bCAR (\d{1,2}) \([A-Z]{3}\)")
+
+
+def car_in_message(message: str) -> int | None:
+    """The car a penalty, deleted time or investigation is about.
+
+    FastF1 only fills RacingNumber for driver-scoped flags, so without this
+    every penalty would be stored with no driver, and "who was penalised?"
+    would silently find nobody.
+    """
+    cars = {int(number) for number in _ONE_CAR.findall(message)}
+    # "CAR 44 (HAM) AND CAR 1 (VER)" names two drivers; one row cannot.
+    return cars.pop() if len(cars) == 1 else None
+
+
+def _racing_number(row: Any, message: str) -> int | None:
+    number = to_int(row.get("RacingNumber"))
+    return number if number is not None else car_in_message(message)
+
+
+def to_compound(value: Any) -> str | None:
+    text = to_str(value)
+    if text is None or text.upper() in UNKNOWN_COMPOUNDS:
+        return None
+    return text.upper()
+
 
 #: Our session types to FastF1's session identifiers.
 SESSION_IDENTIFIERS: dict[SessionType, str] = {
@@ -325,7 +360,7 @@ class FastF1Provider:
                     sector_3_ms=duration_ms(row.get("Sector3Time")),
                     speed_trap_kph=to_float(row.get("SpeedST")),
                     position=to_int(row.get("Position")),
-                    compound=to_str(row.get("Compound")),
+                    compound=to_compound(row.get("Compound")),
                     tyre_life=to_int(row.get("TyreLife")),
                     is_personal_best=to_bool(row.get("IsPersonalBest")),
                     track_status=to_str(row.get("TrackStatus")),
@@ -422,7 +457,7 @@ class FastF1Provider:
                     category=to_str(row.get("Category")),
                     flag=to_str(row.get("Flag")),
                     scope=to_str(row.get("Scope")),
-                    driver_number=to_int(row.get("RacingNumber")),
+                    driver_number=_racing_number(row, text),
                 )
             )
         return rows

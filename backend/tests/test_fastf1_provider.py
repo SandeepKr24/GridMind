@@ -19,6 +19,7 @@ from app.ingestion.fastf1_provider import (
     FastF1Provider,
     _optional_frame,
     _session_types_for,
+    car_in_message,
 )
 
 PROVIDER = FastF1Provider(".fastf1-cache")
@@ -201,6 +202,16 @@ class TestLaps:
         assert lap.compound == "MEDIUM"
         assert lap.track_status == "1"
 
+    @pytest.mark.parametrize("placeholder", ["None", "UNKNOWN", "TEST_UNKNOWN", "nan", ""])
+    def test_a_placeholder_compound_is_stored_as_null(self, placeholder: str) -> None:
+        # Seen in stored data: 25 laps with compound 'None', the string.
+        lap = PROVIDER._laps(laps_frame([{"Compound": placeholder}]), ALIASES)[0]
+        assert lap.compound is None
+
+    def test_a_compound_is_stored_in_upper_case(self) -> None:
+        lap = PROVIDER._laps(laps_frame([{"Compound": "Intermediate"}]), ALIASES)[0]
+        assert lap.compound == "INTERMEDIATE"
+
     def test_a_lap_with_no_time_keeps_a_null_not_a_zero(self) -> None:
         # In-laps and out-laps have no representative time. Zero would drag
         # every average down.
@@ -291,6 +302,39 @@ class TestRaceControl:
         assert message.timestamp.tzinfo is not None
         # Session-wide events have no driver.
         assert message.driver_number is None
+
+    @pytest.mark.parametrize(
+        ("message", "car"),
+        [
+            ("CAR 4 (NOR) TIME 1:50.504 DELETED - TRACK LIMITS AT TURN 6 LAP 2 15:06:24", 4),
+            ("FIA STEWARDS: 5 SECOND TIME PENALTY FOR CAR 55 (SAI) - SPEEDING", 55),
+            ("TURN 5 INCIDENT INVOLVING CARS 23 (ALB) AND 4 (NOR) NOTED", None),
+            ("CAR 44 (HAM) AND CAR 1 (VER) COLLISION NOTED", None),
+            ("CAR 4 (NOR) TIME DELETED - CAR 4 (NOR) WARNED", 4),
+            ("SAFETY CAR DEPLOYED", None),
+            ("RISK OF RAIN FOR F1 RACE IS 0 %", None),
+        ],
+    )
+    def test_a_single_car_named_in_the_message_is_attributed(
+        self, message: str, car: int | None
+    ) -> None:
+        assert car_in_message(message) == car
+
+    def test_racing_number_wins_over_the_message(self) -> None:
+        class FakeSession:
+            race_control_messages = pd.DataFrame(
+                [{"Message": "CAR 4 (NOR) TIME DELETED", "RacingNumber": "16", "Lap": 3}]
+            )
+
+        assert PROVIDER._race_control(FakeSession())[0].driver_number == 16
+
+    def test_a_message_naming_a_car_gets_its_number(self) -> None:
+        class FakeSession:
+            race_control_messages = pd.DataFrame(
+                [{"Message": "CAR 4 (NOR) TIME DELETED", "RacingNumber": None, "Lap": 3}]
+            )
+
+        assert PROVIDER._race_control(FakeSession())[0].driver_number == 4
 
     def test_a_session_without_messages_is_not_an_error(self) -> None:
         class NoMessages:

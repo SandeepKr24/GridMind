@@ -74,6 +74,13 @@ def _error_code(response: httpx.Response) -> str | None:
     return str(code) if code is not None else None
 
 
+def _failed_generation(response: httpx.Response) -> str:
+    try:
+        return str(response.json()["error"].get("failed_generation") or "")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return ""
+
+
 def parse_completion(payload: Any, *, fallback_model: str, latency_ms: int) -> Completion:
     try:
         choice = payload["choices"][0]
@@ -234,6 +241,12 @@ class GroqProvider:
         if status in RETRYABLE:
             return
         if status == 400 and _error_code(response) == "json_validate_failed":
+            # What the model actually produced; the only way to fix a prompt.
+            logger.warning(
+                "groq %s schema validation failed; generation began: %.300r",
+                self._model,
+                _failed_generation(response),
+            )
             raise LLMInvalidResponseError(
                 f"groq {self._model} output failed schema validation: {_error_text(response)}"
             )
