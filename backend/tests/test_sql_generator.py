@@ -85,6 +85,8 @@ class TestPrompt:
             "Never look sessions up by name",
             f"LIMIT {ROW_LIMIT}",
             "set sql to null",
+            "in its own CTE before",  # laps x pit_stops fan-out, seen live
+            "counting laps (e.g. laps led",  # pace filters undercounted laps led
         ],
     )
     def test_prompt_carries_the_rules_live_runs_needed(self, rule: str) -> None:

@@ -45,7 +45,8 @@ SCHEMA_TEXT = """\
 PostgreSQL tables. All times are integer milliseconds.
 session_results(session_id, driver_id, constructor_id, position [null = not classified],
   grid_position [0 = pit lane start], points, status ['Finished','Lapped','Retired',
-  'Disqualified', ...], total_laps, fastest_lap [boolean], fastest_lap_time_ms,
+  'Disqualified', ...], total_laps, fastest_lap [boolean], fastest_lap_time_ms [only
+  on the session's fastest-lap holder; anyone's best lap is MIN(laps.lap_time_ms)],
   q1_time_ms, q2_time_ms, q3_time_ms [qualifying sessions only])
 laps(session_id, driver_id, lap_number, lap_time_ms [null for in-laps, out-laps and
   deleted laps], sector_1_ms, sector_2_ms, sector_3_ms, speed_trap_kph, position,
@@ -80,10 +81,13 @@ Rules:
 - Use the driver and constructor ids given for anyone the question names.
 - Return readable columns (drivers.full_name, constructors.name), not bare ids.
 - Keep times in milliseconds; do not format them. Name such columns *_ms.
-- For race pace, use laps with lap_time_ms not null and track_status = '1'.
+- For race pace, use laps with lap_time_ms not null and track_status = '1'. Only
+  for pace: counting laps (e.g. laps led, position = 1) uses every lap.
 - For tyre strategy, read stints from laps: consecutive laps on one compound. The
   compound on a pit stop's lap is the set coming off.
 - Compute counts, averages and differences in SQL. Add LIMIT {ROW_LIMIT} at most.
+- Aggregate each of laps, pit_stops and race_control_events in its own CTE before
+  joining them. Joining two of them directly multiplies rows and corrupts COUNT/SUM.
 - One row per item. Do not pack results into arrays or JSON.
 - Keep the query short and simple: the smallest query that answers the question.
 - For "why" or open-ended questions, do not try to explain in SQL. Return the

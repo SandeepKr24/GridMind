@@ -15,6 +15,8 @@ dependencies = [
     "httpx>=0.28",
     "fastf1>=3.8",
     "python-dotenv>=1.2",
+    # Parses the agent's generated SQL so it can be checked before it runs.
+    "sqlglot>=30.19",
 ]
 
 [project.optional-dependencies]

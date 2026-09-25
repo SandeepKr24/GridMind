@@ -297,6 +297,20 @@ class TestFailures:
 
         assert '{"sql": "SELECT' in caplog.text
 
+    async def test_unparseable_output_is_an_invalid_response_not_a_bad_request(self) -> None:
+        # Seen live: a 400 with no json_validate_failed code, only the message
+        # and a failed_generation field. It must be retryable like the other.
+        body = {
+            "error": {
+                "message": "Parsing failed. The model generated output that could not be parsed.",
+                "type": "invalid_request_error",
+                "failed_generation": "",
+            }
+        }
+
+        with pytest.raises(LLMInvalidResponseError, match="Parsing failed"):
+            await provider(Recorder(httpx.Response(400, json=body))).complete(QUESTION)
+
     async def test_schema_validation_failure_is_an_invalid_response(self) -> None:
         recorder = Recorder(error(400, "did not match schema", code="json_validate_failed"))
 

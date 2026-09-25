@@ -74,6 +74,21 @@ def _error_code(response: httpx.Response) -> str | None:
     return str(code) if code is not None else None
 
 
+def _is_generation_failure(response: httpx.Response) -> bool:
+    """A 400 about what the model wrote, not about our request.
+
+    Groq reports these two ways: `json_validate_failed` when the output misses
+    the schema, and "Parsing failed" when it cannot be parsed at all. Both carry
+    a `failed_generation` field, which a genuinely bad request does not.
+    """
+    if _error_code(response) == "json_validate_failed":
+        return True
+    try:
+        return "failed_generation" in response.json()["error"]
+    except (ValueError, KeyError, TypeError):
+        return False
+
+
 def _failed_generation(response: httpx.Response) -> str:
     try:
         return str(response.json()["error"].get("failed_generation") or "")
@@ -240,15 +255,15 @@ class GroqProvider:
             )
         if status in RETRYABLE:
             return
-        if status == 400 and _error_code(response) == "json_validate_failed":
+        if status == 400 and _is_generation_failure(response):
             # What the model actually produced; the only way to fix a prompt.
             logger.warning(
-                "groq %s schema validation failed; generation began: %.300r",
+                "groq %s output rejected; generation began: %.300r",
                 self._model,
                 _failed_generation(response),
             )
             raise LLMInvalidResponseError(
-                f"groq {self._model} output failed schema validation: {_error_text(response)}"
+                f"groq {self._model} output was unusable: {_error_text(response)}"
             )
         if status == 401:
             raise LLMError("groq rejected the API key")
