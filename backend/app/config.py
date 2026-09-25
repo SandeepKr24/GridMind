@@ -9,10 +9,10 @@ writer removes the database-level safety net without any visible symptom.
 from __future__ import annotations
 
 import re
-from typing import Annotated
+from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Neon exposes the same database on two hostnames. The "-pooler" one routes
@@ -22,6 +22,8 @@ POOLER_HOST_MARKER = "-pooler."
 _ASYNC_DRIVER = "postgresql+psycopg://"
 _BARE_SCHEMES = ("postgresql://", "postgres://")
 _IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]*$")
+
+DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 
 
 def _normalise_driver(url: str) -> str:
@@ -59,8 +61,16 @@ class Settings(BaseSettings):
 
     # --- LLM ------------------------------------------------------------
     # Optional: the data and report endpoints must boot without an LLM key.
-    groq_api_key: str | None = None
+    # SecretStr keeps the key out of reprs, tracebacks and logged settings.
+    groq_api_key: SecretStr | None = None
     groq_model: str | None = None
+    # Groq's quotas are per model, so a second model is a second budget.
+    groq_fallback_model: str | None = None
+    # Only for reasoning models (e.g. openai/gpt-oss-*). Reasoning tokens count
+    # against the per-minute token quota, so "low" stretches the free tier.
+    groq_reasoning_effort: Literal["low", "medium", "high"] | None = None
+    groq_base_url: str = DEFAULT_GROQ_BASE_URL
+    llm_timeout_seconds: float = Field(default=30.0, gt=0)
 
     # --- Ingestion ------------------------------------------------------
     fastf1_cache_dir: str = ".fastf1-cache"
@@ -104,6 +114,17 @@ class Settings(BaseSettings):
                 "direct endpoint (DATABASE_URL_UNPOOLED in .env.local)."
             )
         return _normalise_driver(value)
+
+    @field_validator(
+        "groq_api_key", "groq_model", "groq_fallback_model", "groq_reasoning_effort", mode="before"
+    )
+    @classmethod
+    def _blank_means_unset(cls, value: object) -> object:
+        # An unfilled `GROQ_MODEL=` line in .env arrives as "", not as absent.
+        # Left alone, "" would count as configured and fail on the first call.
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value.strip() if isinstance(value, str) else value
 
     @field_validator("database_schema")
     @classmethod

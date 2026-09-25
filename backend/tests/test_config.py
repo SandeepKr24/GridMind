@@ -134,3 +134,26 @@ class TestDefaults:
     def test_groq_key_is_optional_so_the_api_can_boot_without_an_llm(self) -> None:
         # Race and report endpoints must work before an LLM key exists.
         assert make().groq_api_key is None
+
+    def test_blank_groq_lines_count_as_unset(self) -> None:
+        # `GROQ_MODEL=` in .env arrives as "", which must not look configured.
+        settings = make(
+            groq_api_key="  ", groq_model="", groq_fallback_model="", groq_reasoning_effort=""
+        )
+
+        assert settings.groq_api_key is None
+        assert settings.groq_model is None
+        assert settings.groq_fallback_model is None
+        assert settings.groq_reasoning_effort is None
+
+    def test_groq_key_is_hidden_from_repr(self) -> None:
+        settings = make(groq_api_key="gsk_live_secret", groq_model=" openai/gpt-oss-20b ")
+
+        assert "gsk_live_secret" not in repr(settings)
+        assert settings.groq_api_key is not None
+        assert settings.groq_api_key.get_secret_value() == "gsk_live_secret"
+        assert settings.groq_model == "openai/gpt-oss-20b"
+
+    def test_reasoning_effort_must_be_a_known_level(self) -> None:
+        with pytest.raises(ValidationError):
+            make(groq_reasoning_effort="maximum")

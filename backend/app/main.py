@@ -24,6 +24,7 @@ from app.ingestion.runner import JobRunner, PostgresJobStore
 from app.ingestion.schedule import ScheduleCache, ScheduleSource
 from app.ingestion.standings_provider import JolpicaClient
 from app.ingestion.standings_service import PostgresStandingsStore, StandingsService
+from app.llm import LLMProvider, build_llm
 from app.runtime import configure_event_loop
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ def create_app(
     schedules: ScheduleSource | None = None,
     runner: JobRunner | None = None,
     standings: StandingsService | None = None,
+    llm: LLMProvider | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
@@ -56,6 +58,8 @@ def create_app(
         JolpicaClient(settings.jolpica_base_url),
         ttl=dt.timedelta(hours=settings.standings_cache_ttl_hours),
     )
+    # None when no key is configured; only chat depends on it.
+    language_model = llm or build_llm(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -64,6 +68,7 @@ def create_app(
         app.state.schedules = calendar
         app.state.runner = ingestion
         app.state.standings = championship
+        app.state.llm = language_model
         yield
         # Cancelled jobs keep live rows; the next process fails them as orphans.
         await ingestion.shutdown()
