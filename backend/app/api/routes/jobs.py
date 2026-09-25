@@ -14,18 +14,14 @@ import re
 from fastapi import APIRouter, HTTPException, Request
 
 from app.api.schemas.job import IngestAccepted, IngestRequest, JobOut
-from app.db.models.enums import SessionType
 from app.ingestion.jobs import JobKey
 from app.ingestion.runner import IngestBusyError
-from app.ingestion.schedule import FIRST_SEASON
+from app.ingestion.schedule import FIRST_SEASON, session_has_started
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
 #: What the frontend accepts in `?job=`; anything else is not one of ours.
 JOB_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-
-#: Practice starts about two days before race day.
-WEEKEND_LEAD = dt.timedelta(days=3)
 
 RETRY_AFTER_SECONDS = 60
 
@@ -46,15 +42,7 @@ async def _check_can_have_data(request: Request, body: IngestRequest) -> None:
     event = next((e for e in schedule if e.round_number == body.round_number), None)
     if event is None:
         raise HTTPException(status_code=404, detail="Unknown race")
-    if event.event_date is None:
-        return
-
-    starts = (
-        event.event_date
-        if body.session_type == SessionType.RACE
-        else (event.event_date - WEEKEND_LEAD)
-    )
-    if starts > today:
+    if not session_has_started(event.event_date, body.session_type, today):
         raise HTTPException(status_code=409, detail="This session has not run yet.")
 
 

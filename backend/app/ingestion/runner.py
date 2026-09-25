@@ -129,6 +129,10 @@ class JobRunner:
             task.add_done_callback(lambda _: self._tasks.pop(job_id, None))
             return Submission(job_id, is_new=True)
 
+    async def is_ingested(self, key: JobKey) -> bool:
+        """A read-only check. Unlike `submit`, it never writes a job row."""
+        return await self._store.is_ingested(key)
+
     async def get(self, job_id: str) -> JobRecord | None:
         record = await self._store.get(job_id)
         if record is not None and record.is_active and job_id not in self._tasks:

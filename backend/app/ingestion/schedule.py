@@ -19,12 +19,31 @@ import time
 from collections.abc import Callable
 from typing import Protocol
 
+from app.db.models.enums import SessionType
 from app.ingestion.base import ProviderError, RawEvent
 
 logger = logging.getLogger(__name__)
 
 #: FastF1's timing coverage starts in 2018; the frontend's season picker agrees.
 FIRST_SEASON = 2018
+
+#: Practice starts about two days before race day.
+WEEKEND_LEAD = dt.timedelta(days=3)
+
+
+def session_has_started(
+    event_date: dt.date | None, session_type: SessionType, today: dt.date
+) -> bool:
+    """Whether a session can have timing data yet.
+
+    Only race day is known exactly; other sessions are assumed to start with
+    the weekend. An undated event gets the benefit of the doubt, and a fetch
+    that finds nothing fails honestly.
+    """
+    if event_date is None:
+        return True
+    starts = event_date if session_type == SessionType.RACE else event_date - WEEKEND_LEAD
+    return starts <= today
 
 
 class ScheduleProvider(Protocol):
