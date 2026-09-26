@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Titillium_Web } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { AppShell } from "@/components/AppShell";
 import { SettingsProvider } from "@/components/SettingsProvider";
 import "./globals.css";
@@ -44,6 +45,7 @@ export default function RootLayout({
         <SettingsProvider>
           <AppShell>{children}</AppShell>
         </SettingsProvider>
+        <Analytics />
       </body>
     </html>
   );
