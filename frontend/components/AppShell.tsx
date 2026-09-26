@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -35,7 +36,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 border-b border-line bg-surface-base/[0.92] backdrop-blur-[10px]">
         <div className="mx-auto flex min-h-[60px] max-w-[1400px] flex-wrap items-center gap-[22px] px-5">
           <Link href="/" className="mr-1 flex items-center gap-2.5 no-underline">
-            <div className="h-[22px] w-[5px] bg-accent" aria-hidden="true" />
+            {/* The start-lights icon, served from app/icon.svg. Decorative: the wordmark names the link. */}
+            <Image src="/icon.svg" alt="" width={32} height={32} unoptimized priority />
             <div className="font-display text-2xl font-bold uppercase tracking-[0.1em] text-ink">
               Gridmind
             </div>

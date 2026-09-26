@@ -51,3 +51,7 @@ Thumbs.db
 # Local-only documents, deliberately never pushed
 F1_Race_Analyst_*.md
 JOURNAL.md
+
+# Brand source artwork. The files the site serves are copied into frontend/app
+# and frontend/public, since Vercel only sees what is committed.
+Logo/
