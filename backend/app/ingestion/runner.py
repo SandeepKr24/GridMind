@@ -134,8 +134,13 @@ class JobRunner:
         return await self._store.is_ingested(key)
 
     async def get(self, job_id: str) -> JobRecord | None:
+        # Ownership is read before the row, not after. A job can finish while
+        # the row is being read, and then it is gone from _tasks even though
+        # the row we hold still says "running". Checking afterwards mistook
+        # every such job for an orphan and overwrote its real result.
+        owned = job_id in self._tasks
         record = await self._store.get(job_id)
-        if record is not None and record.is_active and job_id not in self._tasks:
+        if record is not None and record.is_active and not owned:
             await self._interrupt(job_id)
             record = await self._store.get(job_id)
         return record

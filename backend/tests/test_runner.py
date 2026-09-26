@@ -34,6 +34,7 @@ class StoreDouble:
         self.ingested: set[JobKey] = set()
         self.stages: dict[str, list[JobStage]] = {}
         self.complete = True
+        self.finish_attempts: list[tuple[str, JobStatus, str | None]] = []
         self._next = 0
 
     def _new(self, key: JobKey, status: JobStatus) -> str:
@@ -97,6 +98,10 @@ class StoreDouble:
         rows_written: int | None = None,
         error: str | None = None,
     ) -> None:
+        self.finish_attempts.append((job_id, status, error))
+        # Mirrors jobs.finish: a finished job keeps its result.
+        if self.jobs[job_id].status not in ACTIVE_STATUSES:
+            return
         self._set(job_id, status=status, rows_written=rows_written, error_message=error)
 
     async def store_session(self, raw: RawSession) -> StoredSession:
@@ -382,6 +387,29 @@ class TestOrphans:
 
         assert job is not None
         assert job.status in ACTIVE_STATUSES
+
+    async def test_a_job_finishing_during_a_poll_keeps_its_real_result(self) -> None:
+        # Seen live: the poll read "running", the job finished during that
+        # read, and the poll then took it for an orphan and failed it.
+        store, provider = StoreDouble(), ProviderDouble()
+        provider.gate.clear()
+        jobs = runner(store, provider)
+        submission = await jobs.submit(KEY)
+        real_get = store.get
+
+        async def get_while_the_job_finishes(job_id: str) -> JobRecord | None:
+            stale = await real_get(job_id)  # still RUNNING
+            provider.gate.set()
+            await jobs.wait_idle()  # the job succeeds and leaves _tasks
+            return stale
+
+        store.get = get_while_the_job_finishes  # type: ignore[method-assign]
+        await jobs.get(submission.job_id)
+
+        final = store.jobs[submission.job_id]
+        assert (final.status, final.error_message) == (JobStatus.SUCCEEDED, None)
+        # Not merely blocked by the store: the runner must not try at all.
+        assert INTERRUPTED not in [error for _, _, error in store.finish_attempts]
 
     async def test_an_unknown_job_is_none(self) -> None:
         assert await runner(StoreDouble(), ProviderDouble()).get("nope") is None

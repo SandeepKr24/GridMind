@@ -205,14 +205,20 @@ class TestRelativeReferences:
 
         assert (session.year, session.round_number) == (2026, 15)
 
-    async def test_race_day_counts_as_the_latest_race(self) -> None:
-        session = only_session(
-            await resolve(
-                mentions(targets=[target(reference="latest")]), today=dt.date(2026, 9, 26)
-            )
+    async def test_on_race_day_the_last_race_is_still_the_previous_one(self) -> None:
+        # Seen live: on race morning, "who won the last race?" started a
+        # fetch for today's race, which had no results yet and failed.
+        race_day = dt.date(2026, 9, 26)
+
+        last = only_session(
+            await resolve(mentions(targets=[target(reference="latest")]), today=race_day)
+        )
+        upcoming = only_session(
+            await resolve(mentions(targets=[target(reference="next")]), today=race_day)
         )
 
-        assert session.round_number == 15
+        assert last.round_number == 14
+        assert upcoming.round_number == 15
 
     async def test_last_race_before_the_season_starts_is_last_seasons_finale(self) -> None:
         session = only_session(

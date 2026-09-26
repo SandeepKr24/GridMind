@@ -79,7 +79,8 @@ Rules:
 - One SELECT (WITH is allowed). Never write, create, alter or grant anything.
 - Filter every timing table by the session ids given. Never look sessions up by name.
 - Use the driver and constructor ids given for anyone the question names.
-- Return readable columns (drivers.full_name, constructors.name), not bare ids.
+- Return readable columns (drivers.full_name, constructors.name), not bare ids, and
+  alias them for display: driver, team, position, points, lap_time_ms, and so on.
 - Keep times in milliseconds; do not format them. Name such columns *_ms.
 - For race pace, use laps with lap_time_ms not null and track_status = '1'. Only
   for pace: counting laps (e.g. laps led, position = 1) uses every lap.

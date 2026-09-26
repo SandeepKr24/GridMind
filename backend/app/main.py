@@ -15,6 +15,14 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agent.conversations import ConversationStore
+from app.agent.entity_resolver import EntityResolver
+from app.agent.executor import PostgresQueryRunner
+from app.agent.ingestion_gate import IngestionGate
+from app.agent.orchestrator import ChatAgent
+from app.agent.session_context import PostgresSessionDirectory
+from app.agent.sql_agent import SqlAgent
+from app.api.routes import chat as chat_routes
 from app.api.routes import health, jobs, races
 from app.api.routes import standings as standings_routes
 from app.config import Settings
@@ -30,6 +38,23 @@ from app.runtime import configure_event_loop
 logger = logging.getLogger(__name__)
 
 
+def build_chat_agent(
+    llm: LLMProvider,
+    db: Database,
+    calendar: ScheduleSource,
+    runner: JobRunner,
+    standings: StandingsService,
+    settings: Settings,
+) -> ChatAgent:
+    return ChatAgent(
+        llm,
+        EntityResolver(llm, calendar),
+        IngestionGate(runner, max_sessions=settings.max_sessions_per_question),
+        SqlAgent(llm, PostgresSessionDirectory(db), PostgresQueryRunner(db)),
+        standings,
+    )
+
+
 def create_app(
     settings: Settings | None = None,
     database: Database | None = None,
@@ -37,6 +62,7 @@ def create_app(
     runner: JobRunner | None = None,
     standings: StandingsService | None = None,
     llm: LLMProvider | None = None,
+    chat: ChatAgent | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
@@ -60,6 +86,15 @@ def create_app(
     )
     # None when no key is configured; only chat depends on it.
     language_model = llm or build_llm(settings)
+    chat_agent = chat
+    if chat_agent is None and language_model is not None:
+        chat_agent = build_chat_agent(
+            language_model, db, calendar, ingestion, championship, settings
+        )
+    conversations = ConversationStore(
+        ttl=dt.timedelta(minutes=settings.conversation_ttl_minutes),
+        max_conversations=settings.max_conversations_in_memory,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -69,6 +104,8 @@ def create_app(
         app.state.runner = ingestion
         app.state.standings = championship
         app.state.llm = language_model
+        app.state.chat = chat_agent
+        app.state.conversations = conversations
         yield
         # Cancelled jobs keep live rows; the next process fails them as orphans.
         await ingestion.shutdown()
@@ -94,4 +131,5 @@ def create_app(
     app.include_router(races.router)
     app.include_router(jobs.router)
     app.include_router(standings_routes.router)
+    app.include_router(chat_routes.router)
     return app

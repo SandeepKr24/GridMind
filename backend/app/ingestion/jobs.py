@@ -180,7 +180,9 @@ async def finish(
 ) -> None:
     await connection.execute(
         update(IngestionJob)
-        .where(IngestionJob.id == job_id)
+        # A finished job keeps its result. Without this, a late "interrupted"
+        # from a racing poll could overwrite a success.
+        .where(IngestionJob.id == job_id, IngestionJob.status.in_(ACTIVE_STATUSES))
         .values(
             status=status,
             rows_written=rows_written,

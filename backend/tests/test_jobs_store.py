@@ -133,6 +133,25 @@ class TestLifecycle:
         )
         assert job.finished_at is not None
 
+    async def test_a_finished_job_keeps_its_result(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        # Seen live: a poll racing the finish wrote "interrupted" over a result.
+        job_id = await jobs.claim(connection, KEY)
+        assert job_id is not None
+        await jobs.finish(connection, job_id, JobStatus.SUCCEEDED, rows_written=917)
+
+        await jobs.finish(connection, job_id, JobStatus.FAILED, error="Interrupted")
+
+        job = await jobs.get(connection, job_id)
+        assert job is not None
+        assert (job.status, job.rows_written, job.error_message) == (
+            JobStatus.SUCCEEDED,
+            917,
+            None,
+        )
+
     async def test_an_unknown_job_is_none(
         self,
         connection: AsyncConnection,  # noqa: F811

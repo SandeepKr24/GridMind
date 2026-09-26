@@ -233,10 +233,11 @@ class EntityResolver:
             ((e.event_date, e.round_number, e) for e in events if e.event_date is not None),
             key=lambda item: item[:2],
         )
-        # Race day counts as both the latest and the next race; whether its
-        # data exists yet is the ingestion gate's call, not this one's.
+        # On race day, "the last race" is still the previous one: today's has
+        # no classification until hours after the flag, and a fetch started
+        # that morning can only fail. Today's race is "the next race" instead.
         if reference == "latest":
-            return next((e for day, _, e in reversed(dated) if day <= today), None)
+            return next((e for day, _, e in reversed(dated) if day < today), None)
         return next((e for day, _, e in dated if day >= today), None)
 
 
