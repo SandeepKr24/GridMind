@@ -1,0 +1,15 @@
+# Only app/, migrations/, alembic.ini, requirements.lock and the entrypoint
+# are copied; this keeps secrets and local state out of the build context.
+.env
+.env.*
+!.env.example
+.venv/
+.fastf1-cache/
+**/__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+*.egg-info/
+tests/
+scripts/
