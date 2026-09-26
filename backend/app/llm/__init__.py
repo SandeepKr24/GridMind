@@ -14,6 +14,7 @@ from app.llm.base import (
     LLMRateLimitedError,
     LLMUnavailableError,
     Message,
+    ReasoningEffort,
     Usage,
 )
 from app.llm.fallback import FallbackProvider
@@ -32,6 +33,7 @@ __all__ = [
     "LLMRateLimitedError",
     "LLMUnavailableError",
     "Message",
+    "ReasoningEffort",
     "Usage",
     "build_llm",
 ]

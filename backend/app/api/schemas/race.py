@@ -11,11 +11,12 @@ are the exception — those are numbers, since they are plotted.
 
 from __future__ import annotations
 
-import datetime as dt
 from typing import Literal
 
 from pydantic import BaseModel
 
+from app.api.schemas.common import iso, race_id
+from app.api.schemas.report import ReportOut
 from app.db.models.enums import SessionType
 
 IngestionState = Literal["ingested", "available", "upcoming"]
@@ -150,16 +151,7 @@ class DashboardSummary(BaseModel):
     average_cold_fetch_seconds: float | None
     latest_race: RaceSummary | None
     latest_podium: list[ClassificationRow]
-    latest_report: None = None
-
-
-def iso(value: dt.date | dt.datetime | None) -> str | None:
-    return value.isoformat() if value is not None else None
-
-
-def race_id(season: int, round_number: int) -> str:
-    """The identifier the frontend uses in URLs: `2024-14`."""
-    return f"{season}-{round_number}"
+    latest_report: ReportOut | None = None
 
 
 __all__ = [

@@ -40,8 +40,16 @@ class FakeProvider:
         schema: JsonSchema | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        reasoning_effort: str | None = None,
     ) -> Completion:
-        self.calls.append({"schema": schema, "max_tokens": max_tokens, "temperature": temperature})
+        self.calls.append(
+            {
+                "schema": schema,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "reasoning_effort": reasoning_effort,
+            }
+        )
         if isinstance(self._outcome, Exception):
             raise self._outcome
         return Completion(text=self._outcome, model=self._model)
@@ -66,11 +74,13 @@ class TestFallbackProvider:
         schema = JsonSchema("x", {"type": "object"})
 
         completion = await FallbackProvider(primary, fallback).complete(
-            QUESTION, schema=schema, max_tokens=99, temperature=0.3
+            QUESTION, schema=schema, max_tokens=99, temperature=0.3, reasoning_effort="low"
         )
 
         assert completion.model == "b"
-        assert fallback.calls == [{"schema": schema, "max_tokens": 99, "temperature": 0.3}]
+        assert fallback.calls == [
+            {"schema": schema, "max_tokens": 99, "temperature": 0.3, "reasoning_effort": "low"}
+        ]
 
     @pytest.mark.parametrize("failure", [LLMError("bad request"), LLMInvalidResponseError("junk")])
     async def test_request_and_answer_problems_do_not_fall_through(self, failure: LLMError) -> None:

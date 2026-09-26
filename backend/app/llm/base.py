@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 Role = Literal["system", "user", "assistant"]
+#: For reasoning models. Overrides the configured effort for one call.
+ReasoningEffort = Literal["low", "medium", "high"]
 
 
 class LLMError(RuntimeError):
@@ -101,4 +103,5 @@ class LLMProvider(Protocol):
         schema: JsonSchema | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> Completion: ...

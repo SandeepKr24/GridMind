@@ -450,11 +450,13 @@ async def _pace_traces(connection: AsyncConnection, session_id: int) -> list[Dri
 async def _strategies(connection: AsyncConnection, session_id: int) -> list[DriverStrategy]:
     """Tyre stints, rebuilt from per-lap compound data.
 
-    A stint is a run of consecutive laps on one compound. FastF1 gives the
-    compound per lap, not the stint, so the boundaries are derived here.
+    A stint is a run of consecutive laps on one set of tyres. FastF1 gives the
+    compound and the tyre's age per lap, not the stint, so the boundaries are
+    derived here: a new stint starts when the compound changes or the tyre's
+    age drops. Compound alone missed every HARD -> HARD stop.
     """
     statement = (
-        select(Driver.full_name, Driver.driver_code, Lap.lap_number, Lap.compound)
+        select(Driver.full_name, Driver.driver_code, Lap.lap_number, Lap.compound, Lap.tyre_life)
         .join(Driver, Driver.id == Lap.driver_id)
         .where(Lap.session_id == session_id, Lap.compound.is_not(None))
         .order_by(Driver.full_name, Lap.lap_number)
@@ -462,12 +464,22 @@ async def _strategies(connection: AsyncConnection, session_id: int) -> list[Driv
     rows = (await connection.execute(statement)).all()
 
     strategies: dict[str, DriverStrategy] = {}
-    for name, code, lap_number, compound in rows:
+    previous_life: dict[str, int | None] = {}
+    for name, code, lap_number, compound, tyre_life in rows:
         strategy = strategies.setdefault(
             name, DriverStrategy(driver_name=name, driver_code=code or "", stop_count=0, stints=[])
         )
         stints = strategy.stints
-        if stints and stints[-1].compound == compound and stints[-1].end_lap == lap_number - 1:
+        last_life = previous_life.get(name)
+        fresh_set = tyre_life is not None and last_life is not None and tyre_life < last_life
+        previous_life[name] = tyre_life
+        same_run = (
+            stints
+            and stints[-1].compound == compound
+            and stints[-1].end_lap == lap_number - 1
+            and not fresh_set
+        )
+        if same_run:
             stints[-1].end_lap = lap_number
         else:
             stints.append(TyreStint(compound=compound, start_lap=lap_number, end_lap=lap_number))

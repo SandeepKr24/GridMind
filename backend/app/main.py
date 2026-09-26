@@ -24,6 +24,7 @@ from app.agent.session_context import PostgresSessionDirectory
 from app.agent.sql_agent import SqlAgent
 from app.api.routes import chat as chat_routes
 from app.api.routes import health, jobs, races
+from app.api.routes import reports as report_routes
 from app.api.routes import standings as standings_routes
 from app.config import Settings
 from app.db.database import Database
@@ -33,6 +34,8 @@ from app.ingestion.schedule import ScheduleCache, ScheduleSource
 from app.ingestion.standings_provider import JolpicaClient
 from app.ingestion.standings_service import PostgresStandingsStore, StandingsService
 from app.llm import LLMProvider, build_llm
+from app.reports.jobs import ReportJobs
+from app.reports.store import PostgresFactsSource, PostgresReportArchive
 from app.runtime import configure_event_loop
 
 logger = logging.getLogger(__name__)
@@ -63,6 +66,7 @@ def create_app(
     standings: StandingsService | None = None,
     llm: LLMProvider | None = None,
     chat: ChatAgent | None = None,
+    reports: ReportJobs | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
@@ -91,6 +95,15 @@ def create_app(
         chat_agent = build_chat_agent(
             language_model, db, calendar, ingestion, championship, settings
         )
+    report_jobs = reports
+    if report_jobs is None and language_model is not None:
+        report_jobs = ReportJobs(
+            language_model,
+            ingestion,
+            PostgresFactsSource(db),
+            PostgresReportArchive(db),
+            timeout_seconds=settings.ingestion_job_timeout_seconds + 300,
+        )
     conversations = ConversationStore(
         ttl=dt.timedelta(minutes=settings.conversation_ttl_minutes),
         max_conversations=settings.max_conversations_in_memory,
@@ -106,7 +119,10 @@ def create_app(
         app.state.llm = language_model
         app.state.chat = chat_agent
         app.state.conversations = conversations
+        app.state.reports = report_jobs
         yield
+        if report_jobs is not None:
+            await report_jobs.shutdown()
         # Cancelled jobs keep live rows; the next process fails them as orphans.
         await ingestion.shutdown()
         # Connections left open delay Neon's suspend, which costs compute time.
@@ -132,4 +148,5 @@ def create_app(
     app.include_router(jobs.router)
     app.include_router(standings_routes.router)
     app.include_router(chat_routes.router)
+    app.include_router(report_routes.router)
     return app

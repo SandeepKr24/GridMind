@@ -36,6 +36,7 @@ from app.llm.base import (
     LLMRateLimitedError,
     LLMUnavailableError,
     Message,
+    ReasoningEffort,
     Usage,
 )
 
@@ -164,8 +165,11 @@ class GroqProvider:
         schema: JsonSchema | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> Completion:
-        body = self._body(messages, schema, max_tokens, temperature)
+        body = self._body(
+            messages, schema, max_tokens, temperature, reasoning_effort or self._reasoning_effort
+        )
         started = time.monotonic()
         async with httpx.AsyncClient(
             base_url=self._base_url,
@@ -198,6 +202,7 @@ class GroqProvider:
         schema: JsonSchema | None,
         max_tokens: int,
         temperature: float,
+        reasoning_effort: str | None,
     ) -> dict[str, Any]:
         body: dict[str, Any] = {
             "model": self._model,
@@ -214,8 +219,8 @@ class GroqProvider:
                     "schema": schema.schema,
                 },
             }
-        if self._reasoning_effort is not None:
-            body["reasoning_effort"] = self._reasoning_effort
+        if reasoning_effort is not None:
+            body["reasoning_effort"] = reasoning_effort
         return body
 
     async def _post(self, http: httpx.AsyncClient, body: dict[str, Any]) -> Any:

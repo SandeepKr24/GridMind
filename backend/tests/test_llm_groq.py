@@ -113,6 +113,16 @@ class TestRequest:
 
         assert recorder.body()["reasoning_effort"] == "low"
 
+    async def test_a_per_call_reasoning_effort_overrides_the_configured_one(self) -> None:
+        recorder = Recorder(ok(), ok())
+        groq = provider(recorder, reasoning_effort="medium")
+
+        await groq.complete(QUESTION, reasoning_effort="low")
+        await groq.complete(QUESTION)
+
+        assert recorder.body(0)["reasoning_effort"] == "low"
+        assert recorder.body(1)["reasoning_effort"] == "medium"
+
     def test_repr_never_contains_the_key(self) -> None:
         assert KEY not in repr(provider(Recorder()))
 

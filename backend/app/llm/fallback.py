@@ -17,6 +17,7 @@ from app.llm.base import (
     LLMRateLimitedError,
     LLMUnavailableError,
     Message,
+    ReasoningEffort,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,10 +42,15 @@ class FallbackProvider:
         schema: JsonSchema | None = None,
         max_tokens: int = 1024,
         temperature: float = 0.0,
+        reasoning_effort: ReasoningEffort | None = None,
     ) -> Completion:
         try:
             return await self._primary.complete(
-                messages, schema=schema, max_tokens=max_tokens, temperature=temperature
+                messages,
+                schema=schema,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
             )
         except (LLMRateLimitedError, LLMUnavailableError) as error:
             logger.warning(
@@ -54,5 +60,9 @@ class FallbackProvider:
                 self._fallback.model,
             )
         return await self._fallback.complete(
-            messages, schema=schema, max_tokens=max_tokens, temperature=temperature
+            messages,
+            schema=schema,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning_effort=reasoning_effort,
         )

@@ -20,6 +20,7 @@ from app.api.schemas.race import CalendarRound
 from app.config import Settings
 from app.ingestion.base import RawEvent
 from app.main import create_app
+from app.reports import store as report_store
 
 WRITER = "postgresql://neondb_owner:pw@ep-x.aws.neon.tech/neondb"
 READER = "postgresql://gridmind_readonly:pw2@ep-x.aws.neon.tech/neondb"
@@ -115,11 +116,20 @@ class TestDashboardRoute:
                 latest_podium=[],
             )
 
+        async def count_reports(connection: Any, season: int) -> int:
+            return 3
+
+        async def latest_report(connection: Any, season: int) -> None:
+            return None
+
         monkeypatch.setattr(race_stats, "get_dashboard", get_dashboard)
+        monkeypatch.setattr(report_store, "count_reports", count_reports)
+        monkeypatch.setattr(report_store, "latest_report", latest_report)
         with client:
             body = client.get("/api/dashboard", params={"season": 2024}).json()
 
         assert (body["rounds_ingested"], body["rounds_on_calendar"]) == (1, 2)
+        assert (body["reports_written"], body["latest_report"]) == (3, None)
 
 
 class TestRaceDetailRoute:

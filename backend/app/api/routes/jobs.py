@@ -17,6 +17,7 @@ from app.api.schemas.job import IngestAccepted, IngestRequest, JobOut
 from app.ingestion.jobs import JobKey
 from app.ingestion.runner import IngestBusyError
 from app.ingestion.schedule import FIRST_SEASON, session_has_started
+from app.reports.jobs import JOB_PREFIX as REPORT_JOB_PREFIX
 
 router = APIRouter(prefix="/api", tags=["jobs"])
 
@@ -65,7 +66,11 @@ async def ingest(body: IngestRequest, request: Request) -> IngestAccepted:
 async def job_status(job_id: str, request: Request) -> JobOut:
     if not JOB_ID.match(job_id):
         raise HTTPException(status_code=404, detail="Unknown job")
-    record = await request.app.state.runner.get(job_id)
+    if job_id.startswith(REPORT_JOB_PREFIX):
+        reports = request.app.state.reports
+        record = reports.get(job_id) if reports is not None else None
+    else:
+        record = await request.app.state.runner.get(job_id)
     if record is None:
         raise HTTPException(status_code=404, detail="Unknown job")
     return JobOut.from_record(record)

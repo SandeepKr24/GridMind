@@ -7,6 +7,8 @@ transaction, because the shapes they return are assembled by SQL.
 
 from __future__ import annotations
 
+import dataclasses
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -228,6 +230,28 @@ class TestRaceStats:
         assert strategy.stints[0].compound == "MEDIUM"
         assert (strategy.stints[0].start_lap, strategy.stints[0].end_lap) == (1, 2)
         assert strategy.stop_count == 0
+
+    async def test_a_fresh_set_of_the_same_compound_is_a_new_stint(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        # Seen at Spa 2024: HARD -> HARD stops vanished, so Hamilton read as
+        # one stop with two stints while the pit stop table listed two.
+        base = sample_session()
+        verstappen = [lap for lap in base.laps if lap.driver_ref == "max_verstappen"]
+        fresh_set = dataclasses.replace(verstappen[-1], lap_number=3, tyre_life=1)
+        laps = (*base.laps, fresh_set)
+        await SessionWriter(connection).store(sample_session(laps=laps))
+
+        stats = await race_stats.get_race_stats(connection, TEST_SEASON, 1)
+
+        assert stats is not None
+        strategy = next(s for s in stats.strategies if s.driver_code == "VER")
+        assert [(s.compound, s.start_lap, s.end_lap) for s in strategy.stints] == [
+            ("MEDIUM", 1, 2),
+            ("MEDIUM", 3, 3),
+        ]
+        assert strategy.stop_count == 1
 
     async def test_pit_stops_are_fastest_first(
         self,

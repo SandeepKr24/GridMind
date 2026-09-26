@@ -22,7 +22,9 @@ from app.api.schemas.race import (
     RaceDetail,
     RaceStats,
 )
+from app.api.schemas.report import ReportOut
 from app.ingestion.schedule import FIRST_SEASON
+from app.reports import store as report_store
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,8 @@ async def calendar(season: int, request: Request) -> list[CalendarRound]:
 async def dashboard(request: Request, season: int = Query(...)) -> DashboardSummary:
     async with request.app.state.database.connect(read_only=True) as connection:
         data = await race_stats.get_dashboard(connection, season)
+        reports_written = await report_store.count_reports(connection, season)
+        latest = await report_store.latest_report(connection, season)
     schedule = await request.app.state.schedules.get(season)
 
     return DashboardSummary(
@@ -74,11 +78,11 @@ async def dashboard(request: Request, season: int = Query(...)) -> DashboardSumm
         # Stored meetings undercount: most of a season is never asked about.
         rounds_on_calendar=max(data.rounds_on_calendar, len(schedule)),
         laps_stored=data.laps_stored,
-        # Reports are not implemented yet. Zero is the truth, not a placeholder.
-        reports_written=0,
+        reports_written=reports_written,
         average_cold_fetch_seconds=None,
         latest_race=data.latest_race,
         latest_podium=data.latest_podium,
+        latest_report=ReportOut.from_stored(latest) if latest else None,
     )
 
 
@@ -87,8 +91,11 @@ async def race_detail(race: str, request: Request) -> RaceDetail:
     season, round_number = parse_race_id(race)
     async with request.app.state.database.connect(read_only=True) as connection:
         detail = await race_stats.get_race(connection, season, round_number)
+        written = detail is not None and await report_store.has_report(
+            connection, season, round_number
+        )
     if detail is not None:
-        return detail
+        return detail.model_copy(update={"has_report": written})
     # Not stored, but it may be on the calendar: the page offers the fetch.
     for event in await request.app.state.schedules.get(season):
         if event.round_number == round_number:
