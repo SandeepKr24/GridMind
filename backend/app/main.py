@@ -7,6 +7,7 @@ import time.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import logging
 from collections.abc import AsyncIterator
@@ -35,6 +36,7 @@ from app.ingestion.standings_provider import JolpicaClient
 from app.ingestion.standings_service import PostgresStandingsStore, StandingsService
 from app.llm import LLMProvider, build_llm
 from app.reports.jobs import ReportJobs
+from app.reports.scheduler import AutoReporter
 from app.reports.store import PostgresFactsSource, PostgresReportArchive
 from app.runtime import configure_event_loop
 
@@ -56,6 +58,25 @@ def build_chat_agent(
         SqlAgent(llm, PostgresSessionDirectory(db), PostgresQueryRunner(db)),
         standings,
     )
+
+
+def _start_auto_reports(
+    settings: Settings,
+    calendar: ScheduleSource,
+    report_jobs: ReportJobs | None,
+    db: Database,
+) -> asyncio.Task[None] | None:
+    """The post-race report loop, or None when disabled or without an LLM."""
+    if not settings.auto_report_enabled or report_jobs is None:
+        return None
+    reporter = AutoReporter(
+        calendar,
+        report_jobs,
+        PostgresReportArchive(db),
+        window_days=settings.auto_report_window_days,
+    )
+    interval = dt.timedelta(hours=settings.auto_report_check_hours)
+    return asyncio.create_task(reporter.run(interval), name="auto-reports")
 
 
 def create_app(
@@ -120,7 +141,12 @@ def create_app(
         app.state.chat = chat_agent
         app.state.conversations = conversations
         app.state.reports = report_jobs
+        auto_reports = _start_auto_reports(settings, calendar, report_jobs, db)
+        app.state.auto_reports = auto_reports
         yield
+        if auto_reports is not None:
+            auto_reports.cancel()
+            await asyncio.gather(auto_reports, return_exceptions=True)
         if report_jobs is not None:
             await report_jobs.shutdown()
         # Cancelled jobs keep live rows; the next process fails them as orphans.

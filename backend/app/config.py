@@ -93,7 +93,11 @@ class Settings(BaseSettings):
 
     # --- Reports --------------------------------------------------------
     auto_report_enabled: bool = True
-    auto_report_check_cron: str | None = None
+    # How often to look for a newly finished race. Checks outside a race's
+    # window touch only the in-memory calendar, never the database.
+    auto_report_check_hours: float = Field(default=3.0, gt=0)
+    # Days after race day during which a missing report is still written.
+    auto_report_window_days: int = Field(default=2, ge=0)
 
     # --- API ------------------------------------------------------------
     # NoDecode: without it pydantic-settings tries json.loads() on the raw env
