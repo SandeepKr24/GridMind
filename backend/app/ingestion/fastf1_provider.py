@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 import re
 import threading
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -101,6 +103,44 @@ SESSION_NAMES: dict[str, SessionType] = {
 
 #: Only qualifying-type sessions carry segment times.
 SEGMENT_SESSIONS = frozenset({SessionType.QUALIFYING, SessionType.SPRINT_QUALIFYING})
+#: Sessions whose classification is decided by elapsed race time.
+TIMED_SESSIONS = frozenset({SessionType.RACE, SessionType.SPRINT})
+
+
+@dataclass(frozen=True, slots=True)
+class FinishTime:
+    gap_to_winner_ms: int | None
+    race_time_ms: int | None
+
+
+_NO_TIME = FinishTime(None, None)
+
+
+def finishing_times(rows: Sequence[tuple[int | None, int | None, int | None]]) -> list[FinishTime]:
+    """Gap to the winner and total race time, from (position, laps, Time) rows.
+
+    FastF1's `Time` holds the winner's total race time and, for everyone else,
+    their gap to the winner. That gap only means something for a car that
+    completed the winner's laps: a lapped car's Time is still filled in
+    (Sargeant, one lap down in Bahrain 2024, read +20.795s), so cars short
+    of the winner's lap count get neither value, and the page shows "+1 LAP"
+    from their lap count instead. Retired and disqualified cars have no Time.
+    """
+    winner = next((r for r in rows if r[0] == 1 and r[2] is not None), None)
+    if winner is None:
+        return [_NO_TIME for _ in rows]
+    _, winner_laps, winner_time = winner
+    assert winner_time is not None  # narrowed by the search above
+    times: list[FinishTime] = []
+    for position, laps, time_ms in rows:
+        if position == 1:
+            times.append(FinishTime(0, winner_time))
+        elif time_ms is not None and laps is not None and laps == winner_laps:
+            times.append(FinishTime(time_ms, winner_time + time_ms))
+        else:
+            times.append(_NO_TIME)
+    return times
+
 
 _cache_lock = threading.Lock()
 _cache_enabled = False
@@ -314,10 +354,14 @@ class FastF1Provider:
             return []
         segments = session_type in SEGMENT_SESSIONS
         rows: list[RawResult] = []
+        times: list[tuple[int | None, int | None, int | None]] = []
         for _, row in results.iterrows():
             driver_ref = to_str(row.get("DriverId"))
             if driver_ref is None:
                 continue
+            times.append(
+                (to_int(row.get("Position")), to_int(row.get("Laps")), duration_ms(row.get("Time")))
+            )
             rows.append(
                 RawResult(
                     driver_ref=driver_ref,
@@ -332,7 +376,12 @@ class FastF1Provider:
                     q3_time_ms=duration_ms(row.get("Q3")) if segments else None,
                 )
             )
-        return rows
+        if session_type not in TIMED_SESSIONS:
+            return rows
+        return [
+            replace(result, gap_to_winner_ms=t.gap_to_winner_ms, race_time_ms=t.race_time_ms)
+            for result, t in zip(rows, finishing_times(times), strict=True)
+        ]
 
     def _laps(self, laps: Any, aliases: dict[str, str]) -> list[RawLap]:
         if laps is None or laps.empty:

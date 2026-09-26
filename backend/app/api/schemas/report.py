@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel
 
 from app.api.schemas.common import iso, race_id
+from app.llm.text import plain_text
 
 if TYPE_CHECKING:
     # Only for the annotation: importing the store at runtime would loop back
@@ -46,7 +47,12 @@ class ReportOut(BaseModel):
             model=report.model or "unknown",
             trigger=report.trigger.value,
             sections=[
-                ReportSectionOut(heading=str(s.get("heading", "")), body=str(s.get("body", "")))
+                # Reports written before completions were cleaned still hold
+                # the model's narrow spaces; clean them on the way out.
+                ReportSectionOut(
+                    heading=plain_text(str(s.get("heading", ""))),
+                    body=plain_text(str(s.get("body", ""))),
+                )
                 for s in report.sections
             ],
         )

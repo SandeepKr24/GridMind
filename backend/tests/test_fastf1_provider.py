@@ -17,9 +17,11 @@ from app.ingestion.base import ProviderError, RawDriverEntry, SessionNotAvailabl
 from app.ingestion.fastf1_provider import (
     SESSION_IDENTIFIERS,
     FastF1Provider,
+    FinishTime,
     _optional_frame,
     _session_types_for,
     car_in_message,
+    finishing_times,
 )
 
 PROVIDER = FastF1Provider(".fastf1-cache")
@@ -172,10 +174,53 @@ class TestResults:
         # Eliminated in Q2: no Q3 time, and that must stay null rather than 0.
         assert result.q3_time_ms is None
 
+    def test_race_results_carry_the_finishing_gap_and_race_time(self) -> None:
+        # FastF1's Time column: the winner's total race time, everyone else's gap.
+        frame = pd.concat(
+            [
+                results_frame(Time=pd.Timedelta(hours=1, minutes=19, seconds=57.566)),
+                results_frame(DriverId="piastri", Position=2.0, Time=pd.Timedelta(seconds=0.647)),
+            ]
+        )
+        winner, second = PROVIDER._results(frame, SessionType.RACE)
+        assert (winner.gap_to_winner_ms, winner.race_time_ms) == (0, 4_797_566)
+        assert (second.gap_to_winner_ms, second.race_time_ms) == (647, 4_798_213)
+
+    def test_qualifying_results_carry_no_finishing_gap(self) -> None:
+        frame = results_frame(Time=pd.Timedelta(seconds=104.0))
+        result = PROVIDER._results(frame, SessionType.QUALIFYING)[0]
+        assert (result.gap_to_winner_ms, result.race_time_ms) == (None, None)
+
     def test_float_positions_become_integers(self) -> None:
         result = PROVIDER._results(results_frame(), SessionType.RACE)[0]
         assert result.position == 1
         assert result.grid_position == 3
+
+
+class TestFinishingTimes:
+    WINNER = (1, 44, 4_797_566)
+
+    def test_cars_on_the_lead_lap_get_a_gap_and_a_race_time(self) -> None:
+        times = finishing_times([self.WINNER, (2, 44, 647)])
+        assert times == [FinishTime(0, 4_797_566), FinishTime(647, 4_798_213)]
+
+    def test_a_lapped_car_gets_neither(self) -> None:
+        # Bahrain 2024: Sargeant finished a lap down, yet Time read +20.795s.
+        # That number is not a gap to the winner, so it must not become one.
+        times = finishing_times([(1, 57, 5_747_000), (20, 56, 20_795)])
+        assert times[1] == FinishTime(None, None)
+
+    def test_retired_and_disqualified_cars_get_neither(self) -> None:
+        times = finishing_times([self.WINNER, (19, 5, None), (20, 44, None)])
+        assert times[1:] == [FinishTime(None, None), FinishTime(None, None)]
+
+    def test_nothing_is_derived_without_the_winners_time(self) -> None:
+        times = finishing_times([(1, 44, None), (2, 44, 647)])
+        assert times == [FinishTime(None, None), FinishTime(None, None)]
+
+    def test_order_does_not_matter(self) -> None:
+        times = finishing_times([(2, 44, 647), self.WINNER])
+        assert times == [FinishTime(647, 4_798_213), FinishTime(0, 4_797_566)]
 
 
 class TestAliasResolution:

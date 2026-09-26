@@ -47,7 +47,10 @@ session_results(session_id, driver_id, constructor_id, position [null = not clas
   grid_position [0 = pit lane start], points, status ['Finished','Lapped','Retired',
   'Disqualified', ...], total_laps, fastest_lap [boolean], fastest_lap_time_ms [only
   on the session's fastest-lap holder; anyone's best lap is MIN(laps.lap_time_ms)],
-  q1_time_ms, q2_time_ms, q3_time_ms [qualifying sessions only])
+  q1_time_ms, q2_time_ms, q3_time_ms [qualifying sessions only],
+  gap_to_winner_ms [races and sprints; 0 for the winner, null for lapped, retired and
+  disqualified cars; the winning margin is P2's value], race_time_ms [total race time,
+  cars on the winner's lap only])
 laps(session_id, driver_id, lap_number, lap_time_ms [null for in-laps, out-laps and
   deleted laps], sector_1_ms, sector_2_ms, sector_3_ms, speed_trap_kph, position,
   compound ['SOFT','MEDIUM','HARD','INTERMEDIATE','WET', or null], tyre_life [laps on

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.analytics import race_stats
 from app.api.routes.races import parse_race_id
-from app.api.schemas.race import format_gap, format_lap_time, race_id
+from app.api.schemas.race import finishing_gap, format_gap, format_lap_time, race_id
 from app.ingestion.normalizer import SessionWriter
 from tests.conftest_db import (  # noqa: F401
     TEST_SEASON,
@@ -50,6 +50,24 @@ class TestLapTimeFormatting:
 
     def test_a_gap_is_signed(self) -> None:
         assert format_gap(1234) == "+1.234"
+
+
+class TestFinishingGap:
+    def test_a_car_on_the_winners_lap_shows_its_time_gap(self) -> None:
+        assert finishing_gap(647, laps=44, winner_laps=44) == "+0.647"
+        assert finishing_gap(62_485, laps=44, winner_laps=44) == "+1:02.485"
+
+    def test_a_lapped_car_shows_its_lap_deficit(self) -> None:
+        assert finishing_gap(None, laps=43, winner_laps=44) == "+1 LAP"
+        assert finishing_gap(None, laps=41, winner_laps=44) == "+3 LAPS"
+
+    def test_the_winner_retirements_and_unknowns_show_nothing(self) -> None:
+        assert finishing_gap(0, laps=44, winner_laps=44) is None  # the UI says WINNER
+        # A retirement: the status column already says so; a lap count here
+        # would read like a finishing gap.
+        assert finishing_gap(None, laps=5, winner_laps=44, finished=False) is None
+        assert finishing_gap(None, laps=None, winner_laps=44) is None
+        assert finishing_gap(None, laps=44, winner_laps=None) is None
 
 
 class TestRaceIdParsing:
@@ -159,14 +177,37 @@ class TestRaceDetail:
     async def test_an_unstored_race_is_none(self, connection: AsyncConnection) -> None:  # noqa: F811
         assert await race_stats.get_race(connection, TEST_SEASON, 99) is None
 
-    async def test_winning_margin_is_null_because_we_do_not_store_race_time(
+    async def test_winning_margin_is_second_places_gap(
         self,
         connection: AsyncConnection,  # noqa: F811
     ) -> None:
+        await SessionWriter(connection).store(timed_session())
+        detail = await race_stats.get_race(connection, TEST_SEASON, 1)
+        assert detail is not None
+        assert detail.winning_margin == "+0.647"
+
+    async def test_winning_margin_is_null_for_a_session_stored_without_gaps(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        # Sessions ingested before gaps were stored: nothing rather than a guess.
         await SessionWriter(connection).store(sample_session())
         detail = await race_stats.get_race(connection, TEST_SEASON, 1)
         assert detail is not None
         assert detail.winning_margin is None
+
+
+def timed_session():  # type: ignore[no-untyped-def]
+    """The sample race with finishing times: Norris 0.647s behind."""
+    session = sample_session()
+    winner, second = session.results
+    return dataclasses.replace(
+        session,
+        results=(
+            dataclasses.replace(winner, gap_to_winner_ms=0, race_time_ms=165_000),
+            dataclasses.replace(second, gap_to_winner_ms=647, race_time_ms=165_647),
+        ),
+    )
 
 
 @pytest.mark.asyncio
@@ -183,14 +224,36 @@ class TestRaceStats:
         assert stats.classification[0].driver_name == "Max Verstappen"
         assert stats.classification[0].constructor_name == "Red Bull Racing"
 
-    async def test_gap_to_leader_is_never_invented(
+    async def test_gap_to_leader_is_the_finishing_gap(
         self,
         connection: AsyncConnection,  # noqa: F811
     ) -> None:
-        # "Gap to leader" means the race finishing gap. We store lap times, not
-        # race time, so the honest answer is nothing at all. An earlier draft
-        # filled it with a best-lap delta — a different number under this
-        # one's name.
+        await SessionWriter(connection).store(timed_session())
+        stats = await race_stats.get_race_stats(connection, TEST_SEASON, 1)
+        assert stats is not None
+        assert [row.gap_to_leader for row in stats.classification] == [None, "+0.647"]
+
+    async def test_a_lapped_car_shows_its_lap_deficit(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        session = timed_session()
+        winner, second = session.results
+        lapped = dataclasses.replace(
+            second, status="Lapped", laps_completed=1, gap_to_winner_ms=None, race_time_ms=None
+        )
+        await SessionWriter(connection).store(
+            dataclasses.replace(session, results=(winner, lapped))
+        )
+        stats = await race_stats.get_race_stats(connection, TEST_SEASON, 1)
+        assert stats is not None
+        assert stats.classification[1].gap_to_leader == "+1 LAP"
+
+    async def test_gap_is_never_invented_for_a_session_stored_without_gaps(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        # Stored before gaps existed: no best-lap delta or other stand-in.
         await SessionWriter(connection).store(sample_session())
         stats = await race_stats.get_race_stats(connection, TEST_SEASON, 1)
         assert stats is not None

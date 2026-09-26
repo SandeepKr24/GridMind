@@ -289,6 +289,8 @@ class SessionWriter:
                 "q1_time_ms": result.q1_time_ms,
                 "q2_time_ms": result.q2_time_ms,
                 "q3_time_ms": result.q3_time_ms,
+                "gap_to_winner_ms": result.gap_to_winner_ms,
+                "race_time_ms": result.race_time_ms,
             }
             for result in raw.results
             if result.driver_ref in driver_ids

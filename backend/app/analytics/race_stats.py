@@ -29,6 +29,8 @@ from app.api.schemas.race import (
     RaceStats,
     RaceSummary,
     TyreStint,
+    finishing_gap,
+    format_gap,
     format_lap_time,
     iso,
     race_id,
@@ -248,12 +250,14 @@ async def get_race(
     fastest_driver: str | None = None
     total_laps: int | None = None
     safety_cars: int | None = None
+    margin: str | None = None
 
     if row.session_id is not None:
         winner_name = await _winner(connection, row.session_id)
         fastest_driver, fastest_time = await _fastest_lap(connection, row.session_id)
         total_laps = (await _lap_counts(connection, [row.session_id])).get(row.session_id)
         safety_cars = await _safety_car_periods(connection, row.session_id)
+        margin = await _winning_margin(connection, row.session_id)
 
     return RaceDetail(
         id=race_id(row.year, row.round_number),
@@ -269,10 +273,17 @@ async def get_race(
         fastest_lap_time=fastest_time,
         fastest_lap_driver=fastest_driver,
         safety_car_periods=safety_cars,
-        # Requires the race-time gap, which we do not store. Null rather than
-        # a guess.
-        winning_margin=None,
+        winning_margin=margin,
     )
+
+
+async def _winning_margin(connection: AsyncConnection, session_id: int) -> str | None:
+    """Second place's gap to the winner. Null when the session was stored
+    before gaps were, or when second place finished a lap or more down."""
+    statement = select(SessionResult.gap_to_winner_ms).where(
+        SessionResult.session_id == session_id, SessionResult.position == 2
+    )
+    return format_gap((await connection.execute(statement)).scalar_one_or_none())
 
 
 async def _winner(connection: AsyncConnection, session_id: int) -> str | None:
@@ -363,6 +374,8 @@ async def _classification(connection: AsyncConnection, session_id: int) -> list[
             SessionResult.grid_position,
             SessionResult.points,
             SessionResult.status,
+            SessionResult.total_laps,
+            SessionResult.gap_to_winner_ms,
             Driver.full_name,
             Driver.driver_code,
             Constructor.name.label("constructor_name"),
@@ -378,6 +391,10 @@ async def _classification(connection: AsyncConnection, session_id: int) -> list[
         .order_by(SessionResult.position.nulls_last())
     )
     rows = (await connection.execute(statement)).all()
+    winner_laps = next((row.total_laps for row in rows if row.position == 1), None)
+    # Lap deficits only mean something for a session stored with gaps: an
+    # older one has none at all, and "+1 LAP" beside blanks would mislead.
+    has_gaps = any(row.gap_to_winner_ms is not None for row in rows)
 
     return [
         ClassificationRow(
@@ -390,14 +407,21 @@ async def _classification(connection: AsyncConnection, session_id: int) -> list[
             status=row.status or "",
             best_lap_time=format_lap_time(row.best_ms),
             pit_stop_count=row.stop_count,
-            # Always null. "Gap to leader" means the race finishing gap, and we
-            # do not store race time — only lap times. An earlier draft filled
-            # it with a best-lap delta, which is a different number wearing
-            # this one's name. The UI shows a dash instead.
-            gap_to_leader=None,
+            # The race finishing gap, never a stand-in such as a best-lap delta.
+            gap_to_leader=finishing_gap(
+                row.gap_to_winner_ms,
+                laps=row.total_laps,
+                winner_laps=winner_laps,
+                finished=has_gaps and _finished(row.status),
+            ),
         )
         for row in rows
     ]
+
+
+def _finished(status: str | None) -> bool:
+    """Took the flag: "Finished", "Lapped", or the older "+1 Lap" style."""
+    return status is not None and (status in ("Finished", "Lapped") or status.startswith("+"))
 
 
 def _position_changes(rows: list[ClassificationRow]) -> list[PositionChange]:

@@ -43,6 +43,28 @@ def format_gap(milliseconds: int | None) -> str | None:
     return None if formatted is None else f"+{formatted}"
 
 
+def finishing_gap(
+    gap_ms: int | None,
+    *,
+    laps: int | None,
+    winner_laps: int | None,
+    finished: bool = True,
+) -> str | None:
+    """How far behind the winner a car finished, as a timing screen shows it.
+
+    A time gap for cars on the winner's lap, a lap deficit (`+1 LAP`) for
+    lapped cars. Nothing for the winner (the page says WINNER), and nothing for
+    a car that did not finish: its status column says why, and a lap count
+    there would read like a finishing gap.
+    """
+    if gap_ms is not None:
+        return format_gap(gap_ms) if gap_ms > 0 else None
+    if not finished or laps is None or winner_laps is None or laps >= winner_laps:
+        return None
+    down = winner_laps - laps
+    return f"+{down} LAP" if down == 1 else f"+{down} LAPS"
+
+
 class CalendarRound(BaseModel):
     season: int
     round: int

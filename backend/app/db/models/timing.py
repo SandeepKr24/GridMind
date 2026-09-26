@@ -34,6 +34,11 @@ class SessionResult(Base):
     `q1_time_ms` / `q2_time_ms` / `q3_time_ms` are null outside qualifying.
     They exist so segment questions can be answered without modelling Q1/Q2/Q3
     as separate sessions.
+
+    `gap_to_winner_ms` and `race_time_ms` are set in races and sprints for cars
+    that finished on the winner's lap (0 and the total for the winner). They
+    are null for lapped, retired and disqualified cars: a lapped car's gap is
+    its lap deficit, read from `total_laps`.
     """
 
     __tablename__ = "session_results"
@@ -64,6 +69,9 @@ class SessionResult(Base):
     q1_time_ms: Mapped[int | None] = mapped_column(Integer)
     q2_time_ms: Mapped[int | None] = mapped_column(Integer)
     q3_time_ms: Mapped[int | None] = mapped_column(Integer)
+
+    gap_to_winner_ms: Mapped[int | None] = mapped_column(Integer)
+    race_time_ms: Mapped[int | None] = mapped_column(Integer)
 
 
 class Lap(Base):

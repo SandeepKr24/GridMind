@@ -85,6 +85,9 @@ class RawResult:
     q1_time_ms: int | None = None
     q2_time_ms: int | None = None
     q3_time_ms: int | None = None
+    # Races and sprints only, and only for cars on the winner's lap.
+    gap_to_winner_ms: int | None = None
+    race_time_ms: int | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -39,6 +39,7 @@ from app.llm.base import (
     ReasoningEffort,
     Usage,
 )
+from app.llm.text import plain_text
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +115,8 @@ def parse_completion(payload: Any, *, fallback_model: str, latency_ms: int) -> C
 
     usage = payload.get("usage") or {}
     return Completion(
-        text=content,
+        # The model's typographic spaces and hyphens, made plain (llm/text.py).
+        text=plain_text(content),
         model=str(payload.get("model") or fallback_model),
         usage=Usage(
             prompt_tokens=int(usage.get("prompt_tokens") or 0),
