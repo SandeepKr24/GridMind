@@ -13,6 +13,7 @@ import {
   Panel,
   SkeletonRows,
 } from "@/components/ui/primitives";
+import { formatTimestamp } from "@/lib/format";
 import type { Report } from "@/lib/api/types";
 
 export default function ReportPage() {
@@ -39,7 +40,7 @@ export default function ReportPage() {
                 {report.trigger === "automatic" ? "AUTO-GENERATED" : "ON REQUEST"}
               </span>
               <span>{report.model}</span>
-              <span>{report.generated_at}</span>
+              <span>{formatTimestamp(report.generated_at)}</span>
             </div>
           </header>
 
@@ -53,7 +54,7 @@ export default function ReportPage() {
               {report.sections.map((section) => (
                 <section key={section.heading}>
                   <h2 className="gm-heading mb-3 text-base">{section.heading}</h2>
-                  <p className="m-0 text-[16px] leading-[1.75] text-ink-muted text-pretty">
+                  <p className="m-0 whitespace-pre-line text-[16px] leading-[1.75] text-ink-muted text-pretty">
                     {section.body}
                   </p>
                 </section>

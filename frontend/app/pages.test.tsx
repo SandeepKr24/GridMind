@@ -407,6 +407,13 @@ describe("Report", () => {
     expect(await screen.findByText("Empty report")).toBeTruthy();
   });
 
+  it("shows when it was written as a readable UTC time, not a raw timestamp", async () => {
+    api.getReport.mockResolvedValue(report);
+    renderPage(<ReportPage />);
+    expect(await screen.findByText("7 Sep 2025, 16:00 UTC")).toBeTruthy();
+    expect(screen.queryByText("2025-09-07T16:00:00Z")).toBeNull();
+  });
+
   it("shows not found", async () => {
     api.getReport.mockRejectedValue(notFound());
     renderPage(<ReportPage />);
@@ -468,6 +475,24 @@ describe("Chat", () => {
     expect(api.sendChatMessage).toHaveBeenCalledTimes(2);
     expect(screen.getAllByText("Who gained the most at Monza?")).toHaveLength(2); // message + history
     expect(nav.replaced).toContain("/page?job=j1");
+  });
+
+  it("re-asks after ingestion in the same conversation", async () => {
+    // The backend remembers the resolved race on that conversation, so the
+    // re-ask skips the LLM resolver. A new conversation would pay for it again.
+    api.sendChatMessage
+      .mockResolvedValueOnce(
+        answer({ ingestion: { required: true, job_id: "j1" }, conversation_id: "c7" })
+      )
+      .mockResolvedValueOnce(answer({ conversation_id: "c7" }));
+    api.getJob.mockResolvedValue(job("succeeded", { stage: "answering" }));
+    renderPage(<ChatPage />);
+
+    await ask("Who gained the most at Monza?");
+
+    await screen.findByText("Norris gained the most positions.");
+    expect(api.sendChatMessage).toHaveBeenNthCalledWith(1, "Who gained the most at Monza?", null);
+    expect(api.sendChatMessage).toHaveBeenNthCalledWith(2, "Who gained the most at Monza?", "c7");
   });
 
   it("shows a failed ingestion and retries the question", async () => {

@@ -81,8 +81,6 @@ function ChatContent() {
   const lastQuestion = useRef<string | null>(null);
 
   const appendAssistant = useCallback((res: ChatResponse) => {
-    if (res.conversation_id) conversationId.current = res.conversation_id;
-
     const text = res.needs_clarification
       ? res.clarifying_question ?? "Which race did you mean?"
       : res.answer;
@@ -141,6 +139,10 @@ function ChatContent() {
       setPending(true);
       try {
         const res = await send(q);
+        // Kept from every reply, including "fetching first": the backend holds
+        // the resolved race on this conversation, so the re-ask after ingestion
+        // skips the LLM resolver only if it arrives in the same conversation.
+        if (res.conversation_id) conversationId.current = res.conversation_id;
 
         // Ingestion required: the backend returned early with a job id. Show the
         // Loading Pit, then re-ask once the data has landed.

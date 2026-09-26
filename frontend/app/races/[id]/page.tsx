@@ -31,6 +31,7 @@ import {
   PitStopTable,
   RaceControlList,
 } from "@/components/race/RaceTables";
+import { formatTimestamp } from "@/lib/format";
 import type { RaceDetail, RaceStats, Report } from "@/lib/api/types";
 
 const SECTIONS = [
@@ -399,13 +400,13 @@ function ReportSection({
             <div>
               <div className="mb-4 font-mono text-[11px] text-ink-ghost">
                 {report.trigger === "automatic" ? "AUTO-GENERATED" : "ON REQUEST"} ·{" "}
-                {report.model} · {report.generated_at}
+                {report.model} · {formatTimestamp(report.generated_at)}
               </div>
               <div className="flex flex-col gap-5">
                 {report.sections.slice(0, 2).map((section) => (
                   <div key={section.heading}>
                     <div className="gm-label mb-2">{section.heading}</div>
-                    <p className="m-0 text-[15px] leading-[1.7] text-ink-muted text-pretty">
+                    <p className="m-0 whitespace-pre-line text-[15px] leading-[1.7] text-ink-muted text-pretty">
                       {section.body}
                     </p>
                   </div>
