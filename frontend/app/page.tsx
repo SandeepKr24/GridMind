@@ -15,6 +15,7 @@ import {
   StatCard,
 } from "@/components/ui/primitives";
 import type { DashboardSummary } from "@/lib/api/types";
+import { TeamName } from "@/components/ui/TeamName";
 
 export default function DashboardPage() {
   const { season, reducedMotion } = useSettings();
@@ -141,7 +142,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
                     <div className="font-display text-xl font-semibold uppercase tracking-[0.04em]">
                       {row.driver_name}
                     </div>
-                    <div className="text-sm text-ink-faint">{row.constructor_name}</div>
+                    <TeamName name={row.constructor_name} className="text-sm text-ink-faint" />
                   </div>
                   <div className="font-mono text-sm text-ink-muted">
                     {row.gap_to_leader ?? "—"}

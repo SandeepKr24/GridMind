@@ -176,6 +176,33 @@ describe("ChatMessageView", () => {
   });
 });
 
+describe("ChatMessageView team columns", () => {
+  const reply = (columns: string[], rows: string[][]): ChatMessage => ({
+    id: "t1",
+    role: "assistant",
+    text: "Here you go.",
+    table: { columns, rows },
+  });
+
+  it("marks team names in a Team column", () => {
+    render(<ChatMessageView message={reply(["Driver", "Team"], [["Max Verstappen", "Red Bull Racing"]])} />);
+
+    expect(screen.getByText("Red Bull Racing")).toBeTruthy();
+    expect(screen.getAllByTestId(/team-(logo|colour)/)).toHaveLength(1);
+  });
+
+  it("leaves other columns, and unknown values in a Team column, as plain text", () => {
+    render(
+      <ChatMessageView
+        message={reply(["Driver", "Constructor"], [["Ferrari", "—"], ["Lewis Hamilton", "Unknown"]])}
+      />
+    );
+
+    // "Ferrari" sits in the Driver column, so it is not decorated.
+    expect(screen.queryAllByTestId(/team-(logo|colour)/)).toHaveLength(0);
+  });
+});
+
 describe("AsyncBoundary", () => {
   it("shows a skeleton while loading", () => {
     render(

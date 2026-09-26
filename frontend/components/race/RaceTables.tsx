@@ -6,6 +6,7 @@ import type {
   RaceControlEvent,
 } from "@/lib/api/types";
 import { EmptyState } from "@/components/ui/primitives";
+import { TeamName } from "@/components/ui/TeamName";
 
 export function ClassificationTable({ rows }: { rows: ClassificationRow[] }) {
   if (rows.length === 0) {
@@ -48,8 +49,8 @@ export function ClassificationTable({ rows }: { rows: ClassificationRow[] }) {
               <td className="py-2.5 pr-4 font-display text-base font-semibold uppercase tracking-[0.03em]">
                 {row.driver_name}
               </td>
-              <td className="py-2.5 pr-4 text-sm text-ink-faint">
-                {row.constructor_name}
+              <td className="whitespace-nowrap py-2.5 pr-4 text-sm text-ink-faint">
+                <TeamName name={row.constructor_name} />
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 {row.grid_position ?? "—"}

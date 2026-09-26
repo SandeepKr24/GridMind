@@ -3,6 +3,8 @@
 import { SESSION_LABELS, type ChatMessage as Message } from "@/lib/api/types";
 import { barSeriesFromTable } from "@/lib/chartFromTable";
 import { ChatBars } from "@/components/chat/ChatBars";
+import { TeamName } from "@/components/ui/TeamName";
+import { teamKey } from "@/lib/teams";
 
 /**
  * A single conversation turn.
@@ -14,6 +16,11 @@ import { ChatBars } from "@/components/chat/ChatBars";
 export function ChatMessageView({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const series = isUser ? null : barSeriesFromTable(message.table);
+  // Columns whose cells are team names get the team's logo. Checked per cell
+  // too, so a stray value in such a column still renders as plain text.
+  const teamColumns = new Set(
+    (message.table?.columns ?? []).flatMap((col, i) => (/team|constructor/i.test(col) ? [i] : []))
+  );
 
   return (
     <div
@@ -63,7 +70,11 @@ export function ChatMessageView({ message }: { message: Message }) {
                       key={j}
                       className="whitespace-nowrap py-2 pr-4 font-mono text-sm text-ink-muted"
                     >
-                      {cell}
+                      {teamColumns.has(j) && teamKey(cell) ? (
+                        <TeamName name={cell} className="font-body" />
+                      ) : (
+                        cell
+                      )}
                     </td>
                   ))}
                 </tr>

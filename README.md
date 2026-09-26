@@ -121,6 +121,24 @@ default `CORS_ORIGINS` allows both spellings of port 3000.
 The season picker opens on the current season. Stored races from other seasons
 only appear once you select that season.
 
+### Team logos
+
+Team names are shown with the team's logo wherever they appear: the race
+classification, the dashboard podium, and team columns in chat answers. The
+logos are the teams' trademarks and are not included. Add one by putting
+`<key>.svg` (preferred) or `<key>.png` in `frontend/public/teams/` and
+committing it. The folder is read at build time, so no code change is needed. A
+team without a file is shown with a bar in its livery colour.
+
+Keys: `mercedes`, `ferrari`, `red_bull`, `mclaren`, `aston_martin`, `alpine`,
+`williams`, `rb` (RB, Racing Bulls), `sauber` (Kick Sauber, Stake), `haas`,
+`cadillac`, `audi`. Earlier identities have their own keys: `toro_rosso`,
+`alphatauri`, `alfa_romeo`, `racing_point`, `force_india`, `renault`. Which
+names map to which key is in `frontend/lib/teams.ts`.
+
+The logos render at 20×20 px on a near-black background, so use versions made
+for dark backgrounds.
+
 ## Tests and checks
 
 ```bash
