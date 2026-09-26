@@ -39,7 +39,7 @@ export function PositionChangeChart({ changes }: { changes: PositionChange[] }) 
         const width = (Math.abs(c.positions_gained) / maxDelta) * 50;
         return (
           <div key={c.driver_code} className="flex items-center gap-3">
-            <div className="w-[52px] shrink-0 font-mono text-[11px] text-ink-muted">
+            <div className="w-[52px] shrink-0 font-mono text-xs text-ink-muted">
               {c.driver_code}
             </div>
             <div className="relative h-5 flex-1 bg-surface-inset">
@@ -149,7 +149,7 @@ export function LapPaceChart({ traces }: { traces: DriverPaceTrace[] }) {
               className="h-0.5 w-4"
               style={{ background: colours[i % colours.length] }}
             />
-            <span className="font-mono text-[11px] text-ink-muted">
+            <span className="font-mono text-xs text-ink-muted">
               {trace.driver_code}
             </span>
           </div>
@@ -189,7 +189,7 @@ export function TyreStrategyChart({
       <div className="flex flex-col gap-2">
         {strategies.map((s) => (
           <div key={s.driver_code} className="flex items-center gap-3">
-            <div className="w-[52px] shrink-0 font-mono text-[11px] text-ink-muted">
+            <div className="w-[52px] shrink-0 font-mono text-xs text-ink-muted">
               {s.driver_code}
             </div>
             <div className="relative h-5 flex-1 bg-surface-inset">
@@ -211,7 +211,7 @@ export function TyreStrategyChart({
                 );
               })}
             </div>
-            <div className="w-[62px] shrink-0 text-right font-mono text-[11px] text-ink-ghost">
+            <div className="w-[62px] shrink-0 text-right font-mono text-xs text-ink-ghost">
               {s.stop_count}-STOP
             </div>
           </div>
@@ -226,7 +226,7 @@ export function TyreStrategyChart({
               className="h-2.5 w-2.5"
               style={{ background: COMPOUND_COLOURS[compound] }}
             />
-            <span className="font-mono text-[10px] tracking-[0.12em] text-ink-ghost">
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost">
               {compound}
             </span>
           </div>

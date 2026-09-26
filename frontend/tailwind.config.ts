@@ -48,9 +48,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["var(--font-display)", "Barlow Condensed", "sans-serif"],
-        body: ["var(--font-body)", "Barlow", "system-ui", "sans-serif"],
-        mono: ["var(--font-mono)", "IBM Plex Mono", "monospace"],
+        display: ["var(--font-display)", "Titillium Web", "system-ui", "sans-serif"],
+        body: ["var(--font-body)", "Inter", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "JetBrains Mono", "ui-monospace", "monospace"],
       },
       keyframes: {
         pulse: {

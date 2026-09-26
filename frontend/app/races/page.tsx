@@ -26,7 +26,7 @@ export default function RacesPage() {
   return (
     <div className="flex flex-col gap-5">
       <header className="animate-fade">
-        <h1 className="m-0 font-display text-[clamp(32px,5vw,52px)] font-bold uppercase leading-none">
+        <h1 className="m-0 font-display text-[clamp(30px,4.5vw,44px)] font-bold uppercase leading-none">
           {season} Calendar
         </h1>
         <p className="mb-0 mt-1.5 text-sm text-ink-dim">
@@ -35,7 +35,7 @@ export default function RacesPage() {
         </p>
       </header>
 
-      <div className="flex flex-wrap gap-5 font-mono text-[10px] tracking-[0.14em] text-ink-ghost">
+      <div className="flex flex-wrap gap-5 gm-label">
         <LegendItem state="ingested" note="Opens instantly" />
         <LegendItem state="available" note="Fetches on open · ~30-120s" />
         <LegendItem state="upcoming" note="Not yet raced" />
@@ -90,16 +90,16 @@ function RaceCard({ round }: { round: CalendarRound }) {
         className={`absolute bottom-0 left-0 top-0 w-[3px] ${accent[round.state]}`}
       />
       <div className="mb-3 flex items-start justify-between gap-3">
-        <div className="font-mono text-[10px] tracking-[0.16em] text-ink-ghost">
+        <div className="gm-label">
           ROUND {round.round}
         </div>
         <IngestionBadge state={round.state} />
       </div>
-      <div className="font-display text-[22px] uppercase leading-[1.05] tracking-[0.02em]">
+      <div className="font-display text-xl font-semibold uppercase leading-[1.1] tracking-[0.02em]">
         {round.event_name}
       </div>
-      <div className="mt-1 text-xs text-ink-faint">{round.circuit_name}</div>
-      <div className="mt-3 flex items-center justify-between font-mono text-[11px] text-ink-ghost">
+      <div className="mt-1 text-sm text-ink-faint">{round.circuit_name}</div>
+      <div className="mt-3 flex items-center justify-between text-sm text-ink-ghost">
         <span>{round.event_date}</span>
         <span>{resultLine[round.state]}</span>
       </div>

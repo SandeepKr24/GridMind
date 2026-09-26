@@ -1,26 +1,28 @@
 import type { Metadata } from "next";
-import { Barlow, Barlow_Condensed, IBM_Plex_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono, Titillium_Web } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { SettingsProvider } from "@/components/SettingsProvider";
 import "./globals.css";
 
-const body = Barlow({
+// Body and interface text. Stays legible at small sizes, which labels and
+// table headers need. Variable font, so no weight list.
+const body = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   variable: "--font-body",
   display: "swap",
 });
 
-const display = Barlow_Condensed({
+// Headings and names. Titillium is not a variable font, so weights are listed.
+const display = Titillium_Web({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
+  weight: ["400", "600", "700"],
   variable: "--font-display",
   display: "swap",
 });
 
-const mono = IBM_Plex_Mono({
+// Data only: lap times, positions, timers. Monospaced digits keep columns aligned.
+const mono = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });

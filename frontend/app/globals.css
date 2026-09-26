@@ -39,12 +39,17 @@
 }
 
 @layer components {
+  /*
+   * Type scale: Tailwind's own steps (text-xs 12px up to text-4xl 36px), with
+   * 12px as the floor. Monospace is for data only; labels use the body font,
+   * because small uppercase monospace with wide tracking is hard to read.
+   */
   .gm-label {
-    @apply font-mono text-[10px] uppercase tracking-[0.16em] text-ink-ghost;
+    @apply font-body text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost;
   }
 
   .gm-heading {
-    @apply font-display uppercase tracking-[0.16em] text-ink-dim;
+    @apply font-display font-semibold uppercase tracking-[0.06em] text-ink-dim;
   }
 
   /* Screen-reader-only, used for the Loading Pit live region. */

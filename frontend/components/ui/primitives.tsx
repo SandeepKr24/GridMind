@@ -26,8 +26,8 @@ export function SectionHeading({
 }) {
   return (
     <div className="mb-[18px] flex items-baseline justify-between gap-3">
-      <h2 className="gm-heading text-[15px]">{children}</h2>
-      {right ? <div className="font-mono text-[11px] text-ink-ghost">{right}</div> : null}
+      <h2 className="gm-heading text-base">{children}</h2>
+      {right ? <div className="text-xs text-ink-ghost">{right}</div> : null}
     </div>
   );
 }
@@ -68,7 +68,7 @@ export function IngestionBadge({ state }: { state: IngestionState }) {
   const c = config[state];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-sm border px-[7px] py-[3px] font-mono text-[9px] tracking-[0.14em] ${c.ring} ${c.text}`}
+      className={`inline-flex items-center gap-1.5 rounded-sm border px-[7px] py-[3px] text-xs font-semibold uppercase tracking-[0.08em] ${c.ring} ${c.text}`}
     >
       <span className={`h-1.5 w-1.5 rounded-full ${c.dot}`} aria-hidden="true" />
       {c.label}
@@ -88,8 +88,8 @@ export function StatCard({
   return (
     <div className="bg-surface-raised px-[22px] py-5">
       <div className="gm-label mb-2">{label}</div>
-      <div className="font-display text-[40px] font-bold leading-none">{value}</div>
-      <div className="mt-1.5 text-xs text-ink-dim">{sub}</div>
+      <div className="font-display text-4xl font-bold leading-none">{value}</div>
+      <div className="mt-1.5 text-sm text-ink-dim">{sub}</div>
     </div>
   );
 }
@@ -109,13 +109,13 @@ export function Button({
   disabled?: boolean;
 } & Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "onClick" | "type">) {
   const base =
-    "font-display font-bold uppercase tracking-[0.14em] transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "font-display font-bold uppercase tracking-[0.08em] transition-colors disabled:cursor-not-allowed disabled:opacity-40";
   const styles = {
     primary: "bg-accent text-white hover:bg-accent-bright px-[26px] py-3.5 text-base",
     ghost:
       "border border-line-strong bg-transparent text-ink hover:border-ink hover:bg-surface-hover px-[26px] py-3.5 text-base",
     quiet:
-      "border border-line-strong bg-transparent text-ink-muted hover:border-ink-dim hover:text-ink px-5 py-2.5 font-mono text-[11px] tracking-[0.12em] normal-case",
+      "border border-line-strong bg-transparent text-ink-muted hover:border-ink-dim hover:text-ink px-5 py-2.5 font-body text-sm font-semibold tracking-[0.06em] normal-case",
   }[variant];
 
   return (
@@ -157,7 +157,7 @@ export function EmptyState({
 }) {
   return (
     <div className="border border-dashed border-line-strong bg-surface-raised px-6 py-12 text-center">
-      <div className="font-display text-xl uppercase tracking-[0.14em] text-ink-dim">
+      <div className="font-display text-xl font-semibold uppercase tracking-[0.08em] text-ink-dim">
         {title}
       </div>
       <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-ghost text-pretty">
@@ -182,7 +182,7 @@ export function ErrorState({
       role="alert"
       className="border border-accent/30 bg-accent/[0.04] px-6 py-10 text-center"
     >
-      <div className="font-display text-xl uppercase tracking-[0.14em] text-ink">
+      <div className="font-display text-xl font-semibold uppercase tracking-[0.08em] text-ink">
         {title}
       </div>
       <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-ink-muted text-pretty">

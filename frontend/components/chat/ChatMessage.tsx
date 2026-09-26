@@ -26,7 +26,7 @@ export function ChatMessageView({ message }: { message: Message }) {
       {message.entities ? <EntityChip entities={message.entities} /> : null}
 
       <p
-        className={`m-0 text-[15px] leading-[1.65] text-pretty ${
+        className={`m-0 text-base leading-[1.65] text-pretty ${
           isUser ? "text-ink-muted" : "text-[#E2E6EB]"
         }`}
       >
@@ -61,7 +61,7 @@ export function ChatMessageView({ message }: { message: Message }) {
                   {row.map((cell, j) => (
                     <td
                       key={j}
-                      className="whitespace-nowrap py-2 pr-4 font-mono text-[13px] text-ink-muted"
+                      className="whitespace-nowrap py-2 pr-4 font-mono text-sm text-ink-muted"
                     >
                       {cell}
                     </td>
@@ -74,7 +74,7 @@ export function ChatMessageView({ message }: { message: Message }) {
       ) : null}
 
       {message.sources && message.sources.length > 0 ? (
-        <div className="mt-3 font-mono text-[10px] tracking-[0.1em] text-ink-trace">
+        <div className="mt-3 text-xs text-ink-trace">
           SOURCE · {message.sources.join(" · ")}
         </div>
       ) : null}
@@ -101,7 +101,7 @@ function EntityChip({
         aria-hidden="true"
         className="h-1.5 w-1.5 rounded-full bg-status-ready"
       />
-      <span className="font-mono text-[10px] tracking-[0.1em] text-ink-muted">
+      <span className="text-xs font-medium text-ink-muted">
         {parts.join(" · ")}
       </span>
     </div>

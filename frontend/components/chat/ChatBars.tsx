@@ -22,7 +22,7 @@ export function ChatBars({ series }: { series: BarSeries }) {
           const colour = negative ? "#FF6A6A" : i === 0 ? "#E8112D" : "#3A4049";
           return (
             <div key={`${point.label}-${i}`} className="flex items-center gap-3">
-              <div className="w-[88px] shrink-0 truncate font-mono text-[11px] text-ink-muted">
+              <div className="w-[88px] shrink-0 truncate font-mono text-xs text-ink-muted">
                 {point.label}
               </div>
               <div className="relative h-3.5 flex-1 bg-surface-inset">

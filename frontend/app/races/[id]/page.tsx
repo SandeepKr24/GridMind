@@ -163,10 +163,10 @@ function RaceHeader({ race }: { race: RaceDetail }) {
     <Panel className="animate-fade p-[clamp(20px,4vw,32px)]">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="font-mono text-[11px] tracking-[0.2em] text-ink-ghost">
+          <div className="gm-label">
             {race.season} · ROUND {race.round}
           </div>
-          <h1 className="m-0 mt-2 font-display text-[clamp(32px,6vw,64px)] font-bold uppercase leading-none">
+          <h1 className="m-0 mt-2 font-display text-[clamp(30px,5vw,56px)] font-bold uppercase leading-none">
             {race.event_name}
           </h1>
           <div className="mt-2 text-sm text-ink-dim">
@@ -213,10 +213,10 @@ function NotIngested({
 
   return (
     <Panel className="p-[clamp(20px,4vw,32px)]">
-      <div className="mb-3.5 font-mono text-[10px] tracking-[0.2em] text-status-pending">
+      <div className="mb-3.5 gm-label text-status-pending">
         SESSION NOT INGESTED
       </div>
-      <div className="font-display text-[clamp(22px,4vw,34px)] uppercase leading-tight">
+      <div className="font-display text-[clamp(22px,3.5vw,30px)] font-semibold uppercase leading-tight">
         Timing data has not been fetched yet
       </div>
       <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-ink-muted text-pretty">
@@ -247,7 +247,7 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
           <a
             key={s.id}
             href={`#${s.id}`}
-            className="px-3 py-1.5 font-mono text-[10px] tracking-[0.14em] text-ink-ghost no-underline hover:text-ink"
+            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost no-underline hover:text-ink"
           >
             {s.label}
           </a>
@@ -398,7 +398,7 @@ function ReportSection({
         <AsyncBoundary state={state} loading={<SkeletonRows count={5} />}>
           {(report) => (
             <div>
-              <div className="mb-4 font-mono text-[11px] text-ink-ghost">
+              <div className="mb-4 text-sm text-ink-ghost">
                 {report.trigger === "automatic" ? "AUTO-GENERATED" : "ON REQUEST"} ·{" "}
                 {report.model} · {formatTimestamp(report.generated_at)}
               </div>
@@ -406,7 +406,7 @@ function ReportSection({
                 {report.sections.slice(0, 2).map((section) => (
                   <div key={section.heading}>
                     <div className="gm-label mb-2">{section.heading}</div>
-                    <p className="m-0 whitespace-pre-line text-[15px] leading-[1.7] text-ink-muted text-pretty">
+                    <p className="m-0 whitespace-pre-line text-base leading-[1.7] text-ink-muted text-pretty">
                       {section.body}
                     </p>
                   </div>

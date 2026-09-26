@@ -156,10 +156,10 @@ export function LoadingPit({
         ) : null}
 
         <div className="flex flex-wrap items-baseline justify-between gap-3 px-[clamp(20px,4vw,34px)] pb-2.5 pt-[26px]">
-          <div className="font-display text-[17px] uppercase tracking-[0.3em] text-ink">
+          <div className="font-display text-lg font-semibold uppercase tracking-[0.2em] text-ink">
             Loading Pit
           </div>
-          <div className="font-mono text-xs tracking-[0.1em] text-ink-faint">
+          <div className="font-mono text-sm text-ink-faint">
             T+{formatElapsed(elapsedSeconds)}
           </div>
         </div>
@@ -180,13 +180,13 @@ export function LoadingPit({
 
         <div className="px-[clamp(20px,4vw,34px)] pb-5 text-center">
           <div
-            className={`font-display text-[clamp(20px,4vw,28px)] uppercase tracking-[0.14em] ${
+            className={`font-display text-[clamp(20px,3.5vw,26px)] font-semibold uppercase tracking-[0.08em] ${
               failed || overdue ? "text-status-pending" : "text-ink"
             }`}
           >
             {headline}
           </div>
-          <div className="mt-2 font-mono text-[11px] tracking-[0.06em] text-ink-ghost">
+          <div className="mt-2 text-sm text-ink-ghost">
             {subline}
           </div>
         </div>
@@ -194,7 +194,7 @@ export function LoadingPit({
         {log.length > 0 ? (
           <div className="mx-[clamp(20px,4vw,34px)] flex max-h-[132px] flex-col gap-1.5 overflow-y-auto border-t border-line-faint py-3.5">
             {log.map((line, i) => (
-              <div key={`${line.at}-${i}`} className="flex gap-3 font-mono text-[11px]">
+              <div key={`${line.at}-${i}`} className="flex gap-3 font-mono text-xs">
                 <span className="text-[#4A5058]">{line.at}</span>
                 <span className="text-ink-muted">{line.text}</span>
               </div>
@@ -207,7 +207,7 @@ export function LoadingPit({
             <button
               type="button"
               onClick={onRetry}
-              className="bg-accent px-5 py-2.5 font-mono text-[11px] tracking-[0.12em] text-white hover:bg-accent-bright"
+              className="bg-accent px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.08em] text-white hover:bg-accent-bright"
             >
               RETRY JOB
             </button>
@@ -272,7 +272,7 @@ function Light({
           style={{ background: lit ? colour : "#181B20" }}
         />
       </div>
-      <div className="font-mono text-[9px] tracking-[0.1em] text-ink-trace">
+      <div className="font-mono text-xs text-ink-trace">
         {index + 1}
       </div>
     </div>

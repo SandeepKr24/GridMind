@@ -260,7 +260,7 @@ function ChatContent() {
               maxLength={MAX_QUESTION_LENGTH}
               placeholder="Ask anything about F1..."
               disabled={pending}
-              className="flex-1 border-0 bg-transparent px-2 py-2.5 text-[15px] text-ink placeholder:text-ink-trace focus:outline-none disabled:opacity-50"
+              className="flex-1 border-0 bg-transparent px-2 py-2.5 text-base text-ink placeholder:text-ink-trace focus:outline-none disabled:opacity-50"
             />
             <Button type="submit" variant="quiet" disabled={pending || !input.trim()}>
               SEND
@@ -268,7 +268,7 @@ function ChatContent() {
           </form>
         </Panel>
 
-        <p className="m-0 text-center font-mono text-[10px] tracking-[0.08em] text-ink-trace">
+        <p className="m-0 text-center text-xs text-ink-trace">
           The first question about a session takes 30–120s while the timing data is
           fetched. After that it is instant.
         </p>
@@ -293,10 +293,10 @@ function ChatContent() {
 function EmptyChat({ onPick }: { onPick: (q: string) => void }) {
   return (
     <div className="animate-fade">
-      <h1 className="m-0 font-display text-[clamp(30px,5vw,48px)] font-bold uppercase leading-none">
+      <h1 className="m-0 font-display text-[clamp(28px,4.5vw,42px)] font-bold uppercase leading-none">
         Ask the Race Analyst
       </h1>
-      <p className="mt-3 max-w-[520px] text-[15px] leading-relaxed text-ink-muted text-pretty">
+      <p className="mt-3 max-w-[520px] text-base leading-relaxed text-ink-muted text-pretty">
         I can explore race results, driver performance, strategy, tyres, pit stops
         and season standings. Every number comes from stored timing data — if it is
         not in the database, I will say so rather than guess.

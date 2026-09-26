@@ -49,11 +49,11 @@ function Hero({ reducedMotion }: { reducedMotion: boolean }) {
         />
       ) : null}
 
-      <div className="relative max-w-[760px]">
-        <div className="mb-[18px] font-mono text-[11px] tracking-[0.24em] text-accent">
+      <div className="relative max-w-[840px]">
+        <div className="mb-[18px] gm-label text-accent">
           LIVE DATA · ON DEMAND
         </div>
-        <h1 className="m-0 mb-5 font-display text-[clamp(44px,8vw,96px)] font-bold uppercase leading-[0.92] tracking-[-0.01em]">
+        <h1 className="m-0 mb-5 font-display text-[clamp(36px,5.6vw,64px)] font-bold uppercase leading-[0.95] tracking-[-0.01em]">
           Ask questions.
           <br />
           Explore the data.
@@ -134,16 +134,16 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
                   key={row.position}
                   className="flex animate-rise items-center gap-3.5 bg-surface-inset px-4 py-3.5"
                 >
-                  <div className="w-[30px] font-display text-[30px] font-bold text-accent">
+                  <div className="w-[30px] font-display text-3xl font-bold text-accent">
                     {row.position}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-display text-[19px] uppercase tracking-[0.04em]">
+                    <div className="font-display text-xl font-semibold uppercase tracking-[0.04em]">
                       {row.driver_name}
                     </div>
-                    <div className="text-xs text-ink-faint">{row.constructor_name}</div>
+                    <div className="text-sm text-ink-faint">{row.constructor_name}</div>
                   </div>
-                  <div className="font-mono text-xs text-ink-muted">
+                  <div className="font-mono text-sm text-ink-muted">
                     {row.gap_to_leader ?? "—"}
                   </div>
                 </div>
@@ -166,7 +166,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
             />
           ) : (
             <>
-              <div className="mb-3 font-display text-[26px] uppercase leading-[1.1]">
+              <div className="mb-3 font-display text-2xl font-semibold uppercase leading-[1.1]">
                 {data.latest_report.event_name}
               </div>
               <p className="m-0 mb-[18px] text-sm leading-[1.6] text-ink-muted text-pretty">

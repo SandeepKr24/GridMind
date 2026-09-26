@@ -36,10 +36,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="mx-auto flex min-h-[60px] max-w-[1400px] flex-wrap items-center gap-[22px] px-5">
           <Link href="/" className="mr-1 flex items-center gap-2.5 no-underline">
             <div className="h-[22px] w-[5px] bg-accent" aria-hidden="true" />
-            <div className="font-display text-[22px] font-bold uppercase tracking-[0.14em] text-ink">
+            <div className="font-display text-2xl font-bold uppercase tracking-[0.1em] text-ink">
               Gridmind
             </div>
-            <div className="hidden rounded-sm border border-line-strong px-[5px] py-0.5 font-mono text-[9px] tracking-[0.18em] text-ink-ghost sm:block">
+            <div className="hidden rounded-sm border border-line-strong px-[5px] py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost sm:block">
               AI RACE ANALYST
             </div>
           </Link>
@@ -52,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   key={item.href}
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className={`relative px-3.5 py-2.5 font-display text-sm font-semibold uppercase tracking-[0.14em] no-underline ${
+                  className={`relative px-3.5 py-2.5 font-display text-base font-semibold uppercase tracking-[0.08em] no-underline ${
                     active
                       ? "border-b-2 border-accent bg-surface-hover text-ink"
                       : "text-ink hover:bg-surface-hover"
@@ -65,12 +65,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2.5">
-            <label className="flex items-center gap-2 font-mono text-[11px] tracking-[0.08em] text-ink-ghost">
+            <label className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost">
               <span>SEASON</span>
               <select
                 value={season}
                 onChange={(e) => setSeason(Number(e.target.value))}
-                className="rounded-sm border border-line-strong bg-surface-inset px-2 py-1.5 font-mono text-[11px] text-ink-muted hover:text-ink"
+                className="rounded-sm border border-line-strong bg-surface-inset px-2 py-1.5 font-mono text-sm text-ink-muted hover:text-ink"
               >
                 {availableSeasons().map((year) => (
                   <option key={year} value={year}>
@@ -83,7 +83,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               type="button"
               onClick={toggleSound}
               aria-pressed={soundEnabled}
-              className="rounded-sm border border-line-strong bg-surface-inset px-2.5 py-1.5 font-mono text-[10px] tracking-[0.12em] text-ink-muted hover:text-ink"
+              className="rounded-sm border border-line-strong bg-surface-inset px-2.5 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-muted hover:text-ink"
             >
               SOUND {soundEnabled ? "ON" : "OFF"}
             </button>

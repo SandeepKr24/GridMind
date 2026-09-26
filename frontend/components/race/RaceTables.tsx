@@ -45,25 +45,25 @@ export function ClassificationTable({ rows }: { rows: ClassificationRow[] }) {
               <td className="py-2.5 pr-4 font-display text-lg font-bold text-accent">
                 {row.position}
               </td>
-              <td className="py-2.5 pr-4 font-display text-[17px] uppercase tracking-[0.03em]">
+              <td className="py-2.5 pr-4 font-display text-base font-semibold uppercase tracking-[0.03em]">
                 {row.driver_name}
               </td>
-              <td className="py-2.5 pr-4 text-xs text-ink-faint">
+              <td className="py-2.5 pr-4 text-sm text-ink-faint">
                 {row.constructor_name}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink-muted">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 {row.grid_position ?? "—"}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink-muted">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 {row.best_lap_time ?? "—"}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink-muted">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 {row.pit_stop_count ?? "—"}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink-muted">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 {row.gap_to_leader ?? (row.position === 1 ? "WINNER" : "—")}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink">{row.points}</td>
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink">{row.points}</td>
             </tr>
           ))}
         </tbody>
@@ -100,13 +100,13 @@ export function PitStopTable({ stops }: { stops: PitStopRow[] }) {
               key={`${stop.driver_code}-${stop.lap}-${i}`}
               className="border-t border-line-subtle"
             >
-              <td className="py-2.5 pr-4 font-display text-base uppercase">
+              <td className="py-2.5 pr-4 font-display text-base font-semibold uppercase">
                 {stop.driver_name}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink-muted">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
                 L{stop.lap}
               </td>
-              <td className="py-2.5 pr-4 font-mono text-xs text-ink">
+              <td className="py-2.5 pr-4 font-mono text-sm text-ink">
                 {stop.duration_seconds.toFixed(2)}s
               </td>
             </tr>
@@ -136,7 +136,7 @@ export function RaceControlList({ events }: { events: RaceControlEvent[] }) {
       {events.map((event, i) => (
         <li key={i} className="bg-surface-inset px-4 py-3">
           <div className="flex items-baseline gap-3">
-            <span className="shrink-0 font-mono text-[11px] text-accent">
+            <span className="shrink-0 font-mono text-xs text-accent">
               {event.lap === null ? "—" : `L${event.lap}`}
             </span>
             <div className="min-w-0">
