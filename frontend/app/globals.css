@@ -15,6 +15,15 @@
     color: #fff;
   }
 
+  /*
+   * In-page links (#classification, #pace...) would otherwise scroll their
+   * target under the sticky header. Its height changes as it wraps on narrow
+   * screens, so AppShell measures it into --header-height.
+   */
+  [id] {
+    scroll-margin-top: calc(var(--header-height, 64px) + 16px);
+  }
+
   /* Visible focus is non-negotiable — keyboard users need to see where they are. */
   :focus-visible {
     outline: 2px solid #e8112d;

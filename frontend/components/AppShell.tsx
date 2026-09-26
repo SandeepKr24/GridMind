@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
 import { availableSeasons } from "@/lib/hooks/useSeason";
 
@@ -16,6 +16,22 @@ const NAV = [
 export function AppShell({ children }: { children: ReactNode }) {
   const { soundEnabled, toggleSound, reducedMotion, season, setSeason } = useSettings();
   const pathname = usePathname();
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Publish the sticky header's height so in-page links scroll their target
+  // just below it (globals.css). It wraps to several rows on narrow screens.
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return;
+    const root = document.documentElement;
+    const update = () => root.style.setProperty("--header-height", `${header.offsetHeight}px`);
+    update();
+    // Missing in old browsers and in jsdom: the one measurement above stands.
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -33,7 +49,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         />
       ) : null}
 
-      <header className="sticky top-0 z-40 border-b border-line bg-surface-base/[0.92] backdrop-blur-[10px]">
+      <header ref={headerRef} className="sticky top-0 z-40 border-b border-line bg-surface-base/[0.92] backdrop-blur-[10px]">
         <div className="mx-auto flex min-h-[60px] max-w-[1400px] flex-wrap items-center gap-[22px] px-5">
           <Link href="/" className="mr-1 flex items-center gap-2.5 no-underline">
             {/* The start-lights icon, served from app/icon.svg. Decorative: the wordmark names the link. */}

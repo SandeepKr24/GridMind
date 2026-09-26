@@ -257,24 +257,24 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
       <AsyncBoundary state={statsState} loading={<SkeletonRows count={8} />}>
         {(stats) => (
           <div className="flex flex-col gap-6">
-            <Panel as="section" className="p-[22px]" {...{ id: "classification" }}>
+            <Panel as="section" className="p-[22px]" id="classification">
               <SectionHeading>Classification</SectionHeading>
               <ClassificationTable rows={stats.classification} />
             </Panel>
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
-              <Panel as="section" className="p-[22px]" {...{ id: "positions" }}>
+              <Panel as="section" className="p-[22px]" id="positions">
                 <SectionHeading>Position Changes</SectionHeading>
                 <PositionChangeChart changes={stats.position_changes} />
               </Panel>
 
-              <Panel as="section" className="p-[22px]" {...{ id: "pace" }}>
+              <Panel as="section" className="p-[22px]" id="pace">
                 <SectionHeading>Lap Pace</SectionHeading>
                 <LapPaceChart traces={stats.pace_traces} />
               </Panel>
             </div>
 
-            <Panel as="section" className="p-[22px]" {...{ id: "strategy" }}>
+            <Panel as="section" className="p-[22px]" id="strategy">
               <SectionHeading>Tyre Strategy</SectionHeading>
               <TyreStrategyChart
                 strategies={stats.strategies}
@@ -283,12 +283,12 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
             </Panel>
 
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
-              <Panel as="section" className="p-[22px]" {...{ id: "pits" }}>
+              <Panel as="section" className="p-[22px]" id="pits">
                 <SectionHeading>Pit Stops</SectionHeading>
                 <PitStopTable stops={stats.pit_stops} />
               </Panel>
 
-              <Panel as="section" className="p-[22px]" {...{ id: "events" }}>
+              <Panel as="section" className="p-[22px]" id="events">
                 <SectionHeading>Race Control</SectionHeading>
                 <RaceControlList events={stats.race_control} />
               </Panel>
@@ -312,7 +312,7 @@ function AskAboutRace({ race }: { race: RaceDetail }) {
   ];
 
   return (
-    <Panel as="section" className="p-[22px]" {...{ id: "ask" }}>
+    <Panel as="section" className="p-[22px]" id="ask">
       <SectionHeading>Ask About This Race</SectionHeading>
       <div className="flex flex-col gap-px bg-line-faint">
         {prompts.map((prompt) => (
@@ -377,7 +377,7 @@ function ReportSection({
   const missing = state.status === "error" && isNotFound(state.error);
 
   return (
-    <Panel as="section" className="p-[22px]" {...{ id: "report" }}>
+    <Panel as="section" className="p-[22px]" id="report">
       <SectionHeading>Race Report</SectionHeading>
 
       {genError ? (

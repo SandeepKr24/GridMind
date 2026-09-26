@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -313,6 +313,21 @@ describe("Race detail", () => {
     expect(await screen.findByText("Classification")).toBeTruthy();
     expect(api.getRace).toHaveBeenCalledTimes(2);
     expect(nav.search).toBe(""); // job cleared from the URL once done
+  });
+
+  it("links every section tab to a section that exists on the page", async () => {
+    api.getRace.mockResolvedValue(race());
+    api.getRaceStats.mockResolvedValue(stats);
+    api.getRaceReport.mockRejectedValue(notFound());
+    renderPage(<RaceDetailPage />);
+    await screen.findByText("Classification");
+
+    const tabs = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("link");
+    expect(tabs.length).toBeGreaterThan(0);
+    for (const tab of tabs) {
+      const target = tab.getAttribute("href")!.slice(1);
+      expect(document.getElementById(target), `#${target}`).not.toBeNull();
+    }
   });
 
   it("reattaches to a job already in the URL after a refresh", async () => {

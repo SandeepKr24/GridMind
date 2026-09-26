@@ -5,13 +5,16 @@ export function Panel({
   children,
   className = "",
   as: Tag = "div",
+  id,
 }: {
   children: ReactNode;
   className?: string;
   as?: "div" | "section" | "article";
+  /** Makes the panel a jump target for in-page links such as `#classification`. */
+  id?: string;
 }) {
   return (
-    <Tag className={`min-w-0 border border-line bg-surface-raised ${className}`}>
+    <Tag id={id} className={`min-w-0 border border-line bg-surface-raised ${className}`}>
       {children}
     </Tag>
   );
