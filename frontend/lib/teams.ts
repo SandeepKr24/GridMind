@@ -7,10 +7,11 @@
  * renamed team (Toro Rosso, AlphaTauri, Alfa Romeo, Racing Point...) keep their
  * own key, because their logos differ.
  *
- * Logos: put `<key>.svg` or `<key>.png` in `frontend/public/teams/`, using
- * the keys below, and commit it. `next.config.mjs` lists that folder at build
- * time, so no code change is needed. A team without a file is shown with a
- * bar in its livery colour.
+ * Logos: `frontend/public/teams/<key>.png` (or `.svg`), using the keys below.
+ * The PNG tiles are made from the source images in Logo/teams/ by
+ * `frontend/scripts/team-tiles.py`. `next.config.mjs` lists the folder at build
+ * time, so no code change is needed. A team without a file is shown with a bar
+ * in its livery colour.
  */
 
 export type TeamKey =

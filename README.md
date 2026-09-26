@@ -125,10 +125,19 @@ only appear once you select that season.
 
 Team names are shown with the team's logo wherever they appear: the race
 classification, the dashboard podium, and team columns in chat answers. The
-logos are the teams' trademarks and are not included. Add one by putting
-`<key>.svg` (preferred) or `<key>.png` in `frontend/public/teams/` and
-committing it. The folder is read at build time, so no code change is needed. A
-team without a file is shown with a bar in its livery colour.
+logos are the teams' trademarks. The source images live in `Logo/teams/`,
+which is gitignored, named by key (`mclaren.jpg`, `red_bull.png`, and so on).
+`frontend/scripts/team-tiles.py` crops each one to its content, centres it on a
+rounded square of its own background colour, and writes a 64px PNG to
+`frontend/public/teams/`. Commit those tiles: Vercel only has what is committed.
+
+```bash
+backend/.venv/Scripts/python frontend/scripts/team-tiles.py
+```
+
+The folder is read at build time, so a new tile needs no code change. A
+`<key>.svg` placed there directly also works. A team without a file is shown
+with a bar in its livery colour. Kick Sauber (`sauber`) has no logo yet.
 
 Keys: `mercedes`, `ferrari`, `red_bull`, `mclaren`, `aston_martin`, `alpine`,
 `williams`, `rb` (RB, Racing Bulls), `sauber` (Kick Sauber, Stake), `haas`,
@@ -136,8 +145,6 @@ Keys: `mercedes`, `ferrari`, `red_bull`, `mclaren`, `aston_martin`, `alpine`,
 `alphatauri`, `alfa_romeo`, `racing_point`, `force_india`, `renault`. Which
 names map to which key is in `frontend/lib/teams.ts`.
 
-The logos render at 20×20 px on a near-black background, so use versions made
-for dark backgrounds.
 
 ## Tests and checks
 
