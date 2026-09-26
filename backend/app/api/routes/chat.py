@@ -6,7 +6,8 @@ kept for what the frontend handles specially (`frontend/lib/api/client.ts`):
 
 - 404 for a conversation the server has forgotten; the page retries once as a
   new conversation;
-- 429 with Retry-After when the LLM's free tier is exhausted;
+- 429 with Retry-After when the LLM's free tier is exhausted, or this client
+  has asked too often (`app/api/rate_limit.py`);
 - 503 with Retry-After when something upstream is down or busy, or chat is
   not configured on this server.
 
@@ -20,9 +21,10 @@ import asyncio
 import logging
 import math
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.agent.entity_resolver import CalendarUnavailableError
+from app.api.rate_limit import rate_limit
 from app.api.schemas.chat import ChatRequest, ChatResponse
 from app.ingestion.runner import IngestBusyError
 from app.llm import LLMError, LLMRateLimitedError, LLMUnavailableError
@@ -42,7 +44,7 @@ def _unavailable(detail: str, retry_after: int = RETRY_AFTER_SECONDS) -> HTTPExc
     return HTTPException(503, detail=detail, headers={"Retry-After": str(retry_after)})
 
 
-@router.post("/chat", response_model=ChatResponse)
+@router.post("/chat", response_model=ChatResponse, dependencies=[Depends(rate_limit("chat"))])
 async def chat(body: ChatRequest, request: Request) -> ChatResponse:
     agent = request.app.state.chat
     if agent is None:

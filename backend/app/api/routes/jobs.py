@@ -11,8 +11,9 @@ from __future__ import annotations
 import datetime as dt
 import re
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.api.rate_limit import rate_limit
 from app.api.schemas.job import IngestAccepted, IngestRequest, JobOut
 from app.ingestion.jobs import JobKey
 from app.ingestion.runner import IngestBusyError
@@ -47,7 +48,12 @@ async def _check_can_have_data(request: Request, body: IngestRequest) -> None:
         raise HTTPException(status_code=409, detail="This session has not run yet.")
 
 
-@router.post("/ingest", response_model=IngestAccepted, status_code=202)
+@router.post(
+    "/ingest",
+    response_model=IngestAccepted,
+    status_code=202,
+    dependencies=[Depends(rate_limit("ingest"))],
+)
 async def ingest(body: IngestRequest, request: Request) -> IngestAccepted:
     await _check_can_have_data(request, body)
     key = JobKey(body.season_year, body.round_number, body.session_type)

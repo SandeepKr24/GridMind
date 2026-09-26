@@ -104,8 +104,11 @@ class Settings(BaseSettings):
     # value before any validator runs, so "http://localhost:3000" blows up as
     # invalid JSON. We want plain comma-separated values, parsed below.
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Per client address. Each report costs several thousand tokens, so its
+    # budget is the tightest.
     rate_limit_chat_per_minute: int = Field(default=10, gt=0)
     rate_limit_ingest_per_hour: int = Field(default=20, gt=0)
+    rate_limit_report_per_hour: int = Field(default=5, gt=0)
 
     @field_validator("database_url", "database_url_readonly")
     @classmethod

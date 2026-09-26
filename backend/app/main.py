@@ -23,6 +23,7 @@ from app.agent.ingestion_gate import IngestionGate
 from app.agent.orchestrator import ChatAgent
 from app.agent.session_context import PostgresSessionDirectory
 from app.agent.sql_agent import SqlAgent
+from app.api.rate_limit import build_rate_limits
 from app.api.routes import chat as chat_routes
 from app.api.routes import health, jobs, races
 from app.api.routes import reports as report_routes
@@ -129,6 +130,7 @@ def create_app(
         ttl=dt.timedelta(minutes=settings.conversation_ttl_minutes),
         max_conversations=settings.max_conversations_in_memory,
     )
+    rate_limits = build_rate_limits(settings)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -141,6 +143,7 @@ def create_app(
         app.state.chat = chat_agent
         app.state.conversations = conversations
         app.state.reports = report_jobs
+        app.state.rate_limits = rate_limits
         auto_reports = _start_auto_reports(settings, calendar, report_jobs, db)
         app.state.auto_reports = auto_reports
         yield

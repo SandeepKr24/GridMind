@@ -14,8 +14,9 @@ from __future__ import annotations
 
 import datetime as dt
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
+from app.api.rate_limit import rate_limit
 from app.api.routes.races import parse_race_id
 from app.api.schemas.report import ReportJobAccepted, ReportOut
 from app.db.models.enums import SessionType
@@ -53,7 +54,12 @@ async def report_by_id(report_id: str, request: Request) -> ReportOut:
     return ReportOut.from_stored(report)
 
 
-@router.post("/races/{race}/report/generate", response_model=ReportJobAccepted, status_code=202)
+@router.post(
+    "/races/{race}/report/generate",
+    response_model=ReportJobAccepted,
+    status_code=202,
+    dependencies=[Depends(rate_limit("report"))],
+)
 async def generate_report(race: str, request: Request) -> ReportJobAccepted:
     reports = request.app.state.reports
     if reports is None:
