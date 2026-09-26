@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LapPaceChart, PositionChangeChart, TyreStrategyChart } from "./RaceCharts";
 import { ClassificationTable, PitStopTable, RaceControlList } from "./RaceTables";
@@ -18,6 +18,22 @@ describe("PositionChangeChart", () => {
     );
     expect(screen.getByText("+5")).toBeTruthy();
     expect(screen.getByText("-3")).toBeTruthy();
+  });
+
+  it("shows grid and finish for the driver under the pointer", () => {
+    render(
+      <PositionChangeChart
+        changes={[
+          { driver_name: "Lando Norris", driver_code: "NOR", grid_position: 8, finish_position: 3, positions_gained: 5 },
+        ]}
+      />
+    );
+    fireEvent.pointerEnter(screen.getByText("NOR").parentElement!);
+
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("Lando Norris");
+    expect(tip.textContent).toContain("P8grid");
+    expect(tip.textContent).toContain("P3finish");
   });
 
   it("has an empty state", () => {
@@ -39,8 +55,55 @@ describe("LapPaceChart", () => {
         ]}
       />
     );
-    expect(document.querySelectorAll("polyline")).toHaveLength(1);
+    expect(document.querySelectorAll("path[data-series]")).toHaveLength(1);
     expect(screen.getByRole("img").getAttribute("aria-label")).toContain("Lando Norris");
+  });
+
+  const lap = (lap_number: number, lap_time_ms: number) => ({ lap_number, lap_time_ms });
+  const racing = Array.from({ length: 20 }, (_, i) => lap(i + 1, 106_000 + (i % 5) * 150));
+
+  it("gives the winner the first colour, whatever order the traces arrive in", () => {
+    render(
+      <LapPaceChart
+        finishOrder={["VER", "NOR"]}
+        traces={[
+          { driver_code: "NOR", driver_name: "Lando Norris", laps: racing },
+          { driver_code: "VER", driver_name: "Max Verstappen", laps: racing },
+        ]}
+      />
+    );
+    const [first, second] = document.querySelectorAll("path[data-series]");
+    expect(first!.getAttribute("data-series")).toBe("VER");
+    expect(first!.getAttribute("stroke")).toBe("#3987e5");
+    expect(second!.getAttribute("data-series")).toBe("NOR");
+  });
+
+  it("says when slow laps run off the top of the chart", () => {
+    render(
+      <LapPaceChart
+        traces={[{ driver_code: "NOR", driver_name: "Lando Norris", laps: [...racing, lap(21, 130_000)] }]}
+      />
+    );
+    expect(screen.getByText(/run off the top/)).toBeTruthy();
+  });
+
+  it("reads out every driver's time at a lap from the keyboard", () => {
+    render(
+      <LapPaceChart
+        traces={[
+          { driver_code: "NOR", driver_name: "Lando Norris", laps: [lap(1, 92_000), lap(2, 91_500)] },
+          { driver_code: "LEC", driver_name: "Charles Leclerc", laps: [lap(1, 92_300), lap(2, 91_400)] },
+        ]}
+      />
+    );
+    const chart = screen.getByRole("img");
+    fireEvent.focus(chart); // starts on the last lap
+
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("Lap 2");
+    expect(tip.textContent).toContain("1:31.400LEC"); // fastest first
+    fireEvent.keyDown(chart, { key: "ArrowLeft" });
+    expect(screen.getByRole("tooltip").textContent).toContain("Lap 1");
   });
 
   it("has an empty state when no driver has enough laps", () => {
@@ -62,10 +125,45 @@ describe("TyreStrategyChart", () => {
         ]}
       />
     );
-    expect(screen.getByText("1-STOP")).toBeTruthy();
-    expect(screen.getByText("MEDIUM")).toBeTruthy();
-    expect(screen.getByText("HARD")).toBeTruthy();
-    expect(screen.getByTitle("HARD · laps 21-53")).toBeTruthy();
+    expect(screen.getByText("1 stop")).toBeTruthy();
+    expect(screen.getByText("Medium")).toBeTruthy();
+    expect(screen.getByText("Hard")).toBeTruthy();
+    expect(screen.getByLabelText("HARD, laps 21–53")).toBeTruthy();
+  });
+
+  it("lists drivers in finishing order", () => {
+    const stint = [{ compound: "SOFT" as const, start_lap: 1, end_lap: 10 }];
+    render(
+      <TyreStrategyChart
+        totalLaps={10}
+        finishOrder={["PIA", "NOR"]}
+        strategies={[
+          { driver_name: "Lando Norris", driver_code: "NOR", stop_count: 0, stints: stint },
+          { driver_name: "Oscar Piastri", driver_code: "PIA", stop_count: 0, stints: stint },
+        ]}
+      />
+    );
+    const codes = screen.getAllByText(/^(NOR|PIA)$/).map((el) => el.textContent);
+    expect(codes).toEqual(["PIA", "NOR"]);
+  });
+
+  it("shows a stint's laps under the pointer", () => {
+    render(
+      <TyreStrategyChart
+        totalLaps={53}
+        strategies={[
+          { driver_name: "Lando Norris", driver_code: "NOR", stop_count: 1, stints: [
+            { compound: "MEDIUM", start_lap: 1, end_lap: 20 },
+            { compound: "HARD", start_lap: 21, end_lap: 53 },
+          ] },
+        ]}
+      />
+    );
+    fireEvent.pointerEnter(screen.getByLabelText("HARD, laps 21–53"));
+
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toContain("HARDlaps 21–53");
+    expect(tip.textContent).toContain("33laps on this set");
   });
 
   it("has an empty state", () => {

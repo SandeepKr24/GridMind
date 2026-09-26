@@ -25,7 +25,7 @@ export function ChatBars({ series }: { series: BarSeries }) {
               <div className="w-[88px] shrink-0 truncate font-mono text-xs text-ink-muted">
                 {point.label}
               </div>
-              <div className="relative h-3.5 flex-1 bg-surface-inset">
+              <div className="relative h-3 flex-1">
                 {hasNegative ? (
                   <div
                     aria-hidden="true"
@@ -40,11 +40,13 @@ export function ChatBars({ series }: { series: BarSeries }) {
                     left: negative ? undefined : hasNegative ? "50%" : 0,
                     right: negative ? "50%" : undefined,
                     width: `${width}%`,
+                    // Rounded at the data end, square at the baseline.
+                    borderRadius: negative ? "4px 0 0 4px" : "0 4px 4px 0",
                     animationDelay: `${i * 70}ms`,
                   }}
                 />
               </div>
-              <div className="w-12 shrink-0 text-right font-mono text-xs text-ink-muted">
+              <div className="w-12 shrink-0 text-right font-mono text-xs tabular-nums text-ink-muted">
                 {point.display}
               </div>
             </div>

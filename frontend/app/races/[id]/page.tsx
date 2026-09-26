@@ -38,9 +38,9 @@ import type { RaceDetail, RaceStats, Report } from "@/lib/api/types";
 
 const SECTIONS = [
   { id: "classification", label: "CLASSIFICATION" },
-  { id: "positions", label: "POSITIONS" },
   { id: "pace", label: "PACE" },
   { id: "strategy", label: "STRATEGY" },
+  { id: "positions", label: "POSITIONS" },
   { id: "pits", label: "PIT STOPS" },
   { id: "events", label: "EVENTS" },
   { id: "report", label: "REPORT" },
@@ -251,37 +251,39 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
               <ClassificationTable rows={stats.classification} />
             </Panel>
 
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
-              <Panel as="section" className="p-[22px]" id="positions">
-                <SectionHeading>Position Changes</SectionHeading>
-                <PositionChangeChart changes={stats.position_changes} />
-              </Panel>
-
-              <Panel as="section" className="p-[22px]" id="pace">
-                <SectionHeading>Lap Pace</SectionHeading>
-                <LapPaceChart traces={stats.pace_traces} />
-              </Panel>
-            </div>
+            {/* Full width: 40-70 laps of three traces need the room. */}
+            <Panel as="section" className="p-[22px]" id="pace">
+              <SectionHeading>Lap Pace</SectionHeading>
+              <LapPaceChart traces={stats.pace_traces} finishOrder={finishOrder(stats)} />
+            </Panel>
 
             <Panel as="section" className="p-[22px]" id="strategy">
               <SectionHeading>Tyre Strategy</SectionHeading>
               <TyreStrategyChart
                 strategies={stats.strategies}
                 totalLaps={race.total_laps}
+                finishOrder={finishOrder(stats)}
               />
             </Panel>
 
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] gap-6">
+            {/* items-start: the pit stop list is far longer, and stretching the
+                chart panel to match left a tall empty box. */}
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] items-start gap-6">
+              <Panel as="section" className="p-[22px]" id="positions">
+                <SectionHeading>Position Changes</SectionHeading>
+                <PositionChangeChart changes={stats.position_changes} />
+              </Panel>
+
               <Panel as="section" className="p-[22px]" id="pits">
                 <SectionHeading>Pit Stops</SectionHeading>
                 <PitStopTable stops={stats.pit_stops} />
               </Panel>
-
-              <Panel as="section" className="p-[22px]" id="events">
-                <SectionHeading>Race Control</SectionHeading>
-                <RaceControlList events={stats.race_control} />
-              </Panel>
             </div>
+
+            <Panel as="section" className="p-[22px]" id="events">
+              <SectionHeading>Race Control</SectionHeading>
+              <RaceControlList events={stats.race_control} />
+            </Panel>
           </div>
         )}
       </AsyncBoundary>
@@ -290,6 +292,11 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
       <AskAboutRace race={race} />
     </>
   );
+}
+
+/** Driver codes in classification order, so charts list and colour drivers by result. */
+function finishOrder(stats: RaceStats): string[] {
+  return stats.classification.map((row) => row.driver_code);
 }
 
 /**
