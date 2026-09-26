@@ -3,8 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
+import { usePublishedHeight } from "@/lib/hooks/usePublishedHeight";
 import { availableSeasons } from "@/lib/hooks/useSeason";
 
 const NAV = [
@@ -18,20 +19,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const headerRef = useRef<HTMLElement>(null);
 
-  // Publish the sticky header's height so in-page links scroll their target
-  // just below it (globals.css). It wraps to several rows on narrow screens.
-  useEffect(() => {
-    const header = headerRef.current;
-    if (!header) return;
-    const root = document.documentElement;
-    const update = () => root.style.setProperty("--header-height", `${header.offsetHeight}px`);
-    update();
-    // Missing in old browsers and in jsdom: the one measurement above stands.
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(update);
-    observer.observe(header);
-    return () => observer.disconnect();
-  }, []);
+  usePublishedHeight(headerRef, "--header-height");
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

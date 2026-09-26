@@ -330,6 +330,50 @@ describe("Race detail", () => {
     }
   });
 
+  describe("section tabs", () => {
+    async function openTabs() {
+      api.getRace.mockResolvedValue(race());
+      api.getRaceStats.mockResolvedValue(stats);
+      api.getRaceReport.mockRejectedValue(notFound());
+      const scrolled: { id: string; options: ScrollIntoViewOptions }[] = [];
+      // jsdom has no layout, so record the scroll requests instead.
+      Element.prototype.scrollIntoView = vi.fn(function (this: Element, options) {
+        scrolled.push({ id: this.id, options: options as ScrollIntoViewOptions });
+      });
+      renderPage(<RaceDetailPage />);
+      await screen.findByText("Classification");
+      const nav = screen.getByRole("navigation", { name: "Sections" });
+      return { nav, scrolled };
+    }
+
+    it("scroll smoothly to the section and put it in the address bar", async () => {
+      const { nav, scrolled } = await openTabs();
+
+      fireEvent.click(within(nav).getByText("STRATEGY"));
+
+      expect(scrolled).toEqual([{ id: "strategy", options: { behavior: "smooth", block: "start" } }]);
+      expect(window.location.hash).toBe("#strategy");
+    });
+
+    it("jump without animating when the user prefers reduced motion", async () => {
+      vi.stubGlobal("matchMedia", () => ({
+        matches: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      }));
+      const { nav, scrolled } = await openTabs();
+
+      fireEvent.click(within(nav).getByText("PACE"));
+
+      expect(scrolled).toEqual([{ id: "pace", options: { behavior: "auto", block: "start" } }]);
+    });
+
+    it("stay pinned under the site header while the page scrolls", async () => {
+      const { nav } = await openTabs();
+      expect(nav.className).toContain("sticky");
+    });
+  });
+
   it("reattaches to a job already in the URL after a refresh", async () => {
     nav.setSearch("job=j9");
     api.getRace.mockResolvedValue(race({ state: "available" }));

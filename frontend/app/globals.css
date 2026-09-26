@@ -17,11 +17,12 @@
 
   /*
    * In-page links (#classification, #pace...) would otherwise scroll their
-   * target under the sticky header. Its height changes as it wraps on narrow
-   * screens, so AppShell measures it into --header-height.
+   * target under the sticky header, and on the race page under the floating
+   * section nav too. Both change height as they wrap, so they publish it
+   * (usePublishedHeight); the nav's variable only exists while it is shown.
    */
   [id] {
-    scroll-margin-top: calc(var(--header-height, 64px) + 16px);
+    scroll-margin-top: calc(var(--header-height, 64px) + var(--section-nav-height, 0px) + 16px);
   }
 
   /* Visible focus is non-negotiable — keyboard users need to see where they are. */

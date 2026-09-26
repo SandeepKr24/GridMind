@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useRef, useState, type MouseEvent } from "react";
 import { useParams } from "next/navigation";
 import { getRace, getRaceStats } from "@/lib/api/races";
 import { generateReport, getRaceReport } from "@/lib/api/reports";
@@ -9,6 +9,8 @@ import { triggerIngest } from "@/lib/api/jobs";
 import { describeError } from "@/lib/api/client";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { useIngestionJob } from "@/lib/hooks/useIngestionJob";
+import { usePublishedHeight } from "@/lib/hooks/usePublishedHeight";
+import { useSettings } from "@/components/SettingsProvider";
 import { askHref, isValidJobId, useUrlParam } from "@/lib/hooks/useUrlParam";
 import { AsyncBoundary, isNotFound } from "@/components/AsyncBoundary";
 import { LoadingPit } from "@/components/LoadingPit";
@@ -239,20 +241,7 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
 
   return (
     <>
-      <nav
-        aria-label="Sections"
-        className="flex flex-wrap gap-0.5 border-y border-line py-2"
-      >
-        {SECTIONS.map((s) => (
-          <a
-            key={s.id}
-            href={`#${s.id}`}
-            className="px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost no-underline hover:text-ink"
-          >
-            {s.label}
-          </a>
-        ))}
-      </nav>
+      <SectionNav />
 
       <AsyncBoundary state={statsState} loading={<SkeletonRows count={8} />}>
         {(stats) => (
@@ -300,6 +289,48 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
       <ReportSection raceId={raceId} eventName={race.event_name} />
       <AskAboutRace race={race} />
     </>
+  );
+}
+
+/**
+ * The section tabs. They float under the site header while the page scrolls,
+ * and a click glides to the section instead of jumping, unless the viewer
+ * prefers reduced motion. The landing offset comes from the CSS
+ * scroll-margin in globals.css, which counts this nav's published height.
+ * The tabs stay on one row that scrolls sideways on phones: wrapped, header
+ * and tabs together covered a third of the screen.
+ */
+function SectionNav() {
+  const { reducedMotion } = useSettings();
+  const navRef = useRef<HTMLElement>(null);
+  usePublishedHeight(navRef, "--section-nav-height");
+
+  const goTo = (event: MouseEvent<HTMLAnchorElement>, id: string) => {
+    const target = document.getElementById(id);
+    if (!target) return; // let the browser handle it
+    event.preventDefault();
+    target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    // Keep the link shareable without triggering the browser's own jump.
+    window.history.replaceState(null, "", `#${id}`);
+  };
+
+  return (
+    <nav
+      ref={navRef}
+      aria-label="Sections"
+      className="sticky top-[var(--header-height,64px)] z-30 -mx-5 flex gap-0.5 overflow-x-auto border-y border-line bg-surface-base/[0.92] px-5 py-2 backdrop-blur-[10px] [scrollbar-width:none]"
+    >
+      {SECTIONS.map((s) => (
+        <a
+          key={s.id}
+          href={`#${s.id}`}
+          onClick={(event) => goTo(event, s.id)}
+          className="shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-ink-ghost no-underline transition-colors hover:text-ink"
+        >
+          {s.label}
+        </a>
+      ))}
+    </nav>
   );
 }
 
