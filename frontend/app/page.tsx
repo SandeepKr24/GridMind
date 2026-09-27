@@ -62,8 +62,8 @@ function Hero({ reducedMotion }: { reducedMotion: boolean }) {
           <span className="text-ink-dim">Understand the race.</span>
         </h1>
         <p className="m-0 mb-[30px] max-w-[520px] text-base leading-[1.55] text-ink-muted text-pretty">
-          Nothing to set up first. Ask in plain English — the analyst works out
-          which session it needs and pulls the timing data.
+          Just ask your question in plain English. The analyst finds the right
+          session and fetches its timing data for you.
         </p>
         <div className="flex flex-wrap gap-2.5">
           <Link href="/chat">
