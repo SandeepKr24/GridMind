@@ -1,8 +1,13 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LapPaceChart, PositionChangeChart, TyreStrategyChart } from "./RaceCharts";
-import { ClassificationTable, PitStopTable, RaceControlList } from "./RaceTables";
+import {
+  ClassificationTable,
+  parseLapFilter,
+  PitStopTable,
+  RaceControlList,
+} from "./RaceTables";
 
 afterEach(cleanup);
 
@@ -200,6 +205,21 @@ describe("PitStopTable", () => {
     expect(screen.getByText("2.40s")).toBeTruthy();
   });
 
+  it("scrolls inside the height the page gives it, with the headings pinned", () => {
+    render(
+      <PitStopTable
+        stops={[{ driver_name: "Lando Norris", driver_code: "NOR", lap: 18, duration_seconds: 2.4 }]}
+        className="md:absolute md:inset-0"
+      />
+    );
+    const box = screen.getByRole("region", { name: "Pit stops" });
+    expect(box.className).toContain("overflow-auto");
+    expect(box.className).toContain("md:absolute");
+    expect(box.getAttribute("tabindex")).toBe("0");
+    expect(box.hasAttribute("data-lenis-prevent")).toBe(true);
+    expect(screen.getByRole("columnheader", { name: "DRIVER" }).className).toContain("sticky");
+  });
+
   it("has an empty state", () => {
     render(<PitStopTable stops={[]} />);
     expect(screen.getByText("No pit stops recorded")).toBeTruthy();
@@ -239,5 +259,77 @@ describe("RaceControlList", () => {
   it("has an empty state", () => {
     render(<RaceControlList events={[]} />);
     expect(screen.getByText("No race control messages")).toBeTruthy();
+  });
+
+  describe("lap filter", () => {
+    const events = [
+      { lap: null, event_type: "FLAG", message: "GREEN LIGHT - PIT EXIT OPEN", timestamp: null },
+      { lap: 12, event_type: "SAFETY CAR", message: "SAFETY CAR DEPLOYED", timestamp: null },
+      { lap: 12, event_type: "OTHER", message: "CAR 4 TIME DELETED", timestamp: null },
+      { lap: 43, event_type: "FLAG", message: "CHEQUERED FLAG", timestamp: null },
+    ];
+    const lapBox = () => screen.getByLabelText("Lap");
+    const listed = () =>
+      within(screen.getByRole("region", { name: "Race control messages" }))
+        .queryAllByRole("listitem")
+        .map((item) => item.querySelector("p")?.textContent);
+
+    it("shows every message while the box is empty", () => {
+      render(<RaceControlList events={events} />);
+      expect(listed()).toHaveLength(4);
+      expect(screen.getByText("4 messages")).toBeTruthy();
+    });
+
+    it("shows only the messages of the lap typed in", () => {
+      render(<RaceControlList events={events} />);
+
+      fireEvent.change(lapBox(), { target: { value: "12" } });
+
+      expect(listed()).toEqual(["SAFETY CAR DEPLOYED", "CAR 4 TIME DELETED"]);
+      expect(screen.getByText("2 messages on lap 12")).toBeTruthy();
+    });
+
+    it("says so when a lap had no messages", () => {
+      render(<RaceControlList events={events} />);
+
+      fireEvent.change(lapBox(), { target: { value: "20" } });
+
+      expect(listed()).toEqual([]);
+      expect(screen.getByText("No race control messages on lap 20.")).toBeTruthy();
+    });
+
+    it("asks for a real lap when the number is out of range", () => {
+      render(<RaceControlList events={events} />);
+
+      fireEvent.change(lapBox(), { target: { value: "99" } });
+
+      expect(listed()).toEqual([]);
+      expect(screen.getByText("Enter a lap from 1 to 43")).toBeTruthy();
+    });
+
+    it("goes back to every message from Show all", () => {
+      render(<RaceControlList events={events} />);
+      fireEvent.change(lapBox(), { target: { value: "43" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Show all" }));
+
+      expect(listed()).toHaveLength(4);
+      expect((lapBox() as HTMLInputElement).value).toBe("");
+    });
+  });
+});
+
+describe("parseLapFilter", () => {
+  it.each([
+    ["", { kind: "all" }],
+    ["  ", { kind: "all" }],
+    ["7", { kind: "lap", lap: 7 }],
+    ["44", { kind: "lap", lap: 44 }],
+    ["0", { kind: "invalid" }],
+    ["45", { kind: "invalid" }],
+    ["2.5", { kind: "invalid" }],
+    ["-3", { kind: "invalid" }],
+  ])("reads %j with 44 laps as %j", (text, expected) => {
+    expect(parseLapFilter(text, 44)).toEqual(expected);
   });
 });

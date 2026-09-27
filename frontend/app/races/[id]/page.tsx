@@ -299,26 +299,29 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
               />
             </Panel>
 
-            {/* items-start: the pit stop list is far longer, and stretching the
-                chart panel to match left a tall empty box. */}
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(320px,100%),1fr))] items-start gap-6">
+            {/* Side by side, both panels take the position chart's height. The
+                pit list sits in an absolutely placed box, so its length cannot
+                stretch the row, and scrolls inside it. Stacked on phones, it
+                gets a capped height of its own instead. */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <Panel as="section" className="p-[22px]" id="positions">
                 <SectionHeading>Position Changes</SectionHeading>
                 <PositionChangeChart changes={stats.position_changes} />
               </Panel>
 
-              <Panel as="section" className="p-[22px]" id="pits">
+              <Panel as="section" className="flex flex-col p-[22px]" id="pits">
                 <SectionHeading>Pit Stops</SectionHeading>
-                <PitStopTable stops={stats.pit_stops} />
+                <div className="md:relative md:min-h-[200px] md:flex-1">
+                  <PitStopTable
+                    stops={stats.pit_stops}
+                    className="max-h-[min(480px,60vh)] md:absolute md:inset-0 md:max-h-none"
+                  />
+                </div>
               </Panel>
             </div>
 
             <Panel as="section" className="p-[22px]" id="events">
-              <SectionHeading
-                right={`${stats.race_control.length} ${stats.race_control.length === 1 ? "message" : "messages"}`}
-              >
-                Race Control
-              </SectionHeading>
+              <SectionHeading>Race Control</SectionHeading>
               <RaceControlList events={stats.race_control} />
             </Panel>
           </div>
