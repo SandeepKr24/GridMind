@@ -134,6 +134,25 @@ export function Button({
   );
 }
 
+/** Circular-arrow "reload" glyph. Sized by font size; decorative only. */
+export function ReloadIcon({ spinning = false }: { spinning?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`h-[1em] w-[1em] shrink-0 ${spinning ? "motion-safe:animate-spin" : ""}`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path d="M20 4v5h-5" />
+    </svg>
+  );
+}
+
 /** Loading placeholder. Used while a real request is genuinely in flight. */
 export function SkeletonRows({ count = 6 }: { count?: number }) {
   return (

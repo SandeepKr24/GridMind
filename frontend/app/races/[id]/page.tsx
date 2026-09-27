@@ -20,6 +20,7 @@ import {
   ErrorState,
   IngestionBadge,
   Panel,
+  ReloadIcon,
   SectionHeading,
   SkeletonRows,
 } from "@/components/ui/primitives";
@@ -92,36 +93,49 @@ function RaceDetailContent() {
 
   const job = useIngestionJob(jobId, onJobComplete);
 
-  const startIngest = useCallback(async () => {
-    const parsed = parseRaceId(raceId);
-    if (!parsed) return;
-    setJobError(null);
-    setDismissed(false);
-    try {
-      const { job_id } = await triggerIngest({
-        year: parsed.season,
-        round: parsed.round,
-        session: "race",
-      });
-      setJobId(job_id);
-    } catch (err) {
-      const { body } = describeError(err);
-      setJobError(body);
-    }
-  }, [raceId, setJobId]);
+  // Whether the last fetch was a re-ingest, so Retry repeats the same kind.
+  // A plain retry of a stored session would come back cached and fetch nothing.
+  const forceRef = useRef(false);
+
+  const ingest = useCallback(
+    async (force: boolean) => {
+      const parsed = parseRaceId(raceId);
+      if (!parsed) return;
+      forceRef.current = force;
+      setJobError(null);
+      setDismissed(false);
+      try {
+        const { job_id } = await triggerIngest({
+          year: parsed.season,
+          round: parsed.round,
+          session: "race",
+          force,
+        });
+        setJobId(job_id);
+      } catch (err) {
+        const { body } = describeError(err);
+        setJobError(body);
+      }
+    },
+    [raceId, setJobId]
+  );
+
+  const startIngest = useCallback(() => ingest(false), [ingest]);
+  const reingest = useCallback(() => ingest(true), [ingest]);
+  const retryIngest = useCallback(() => ingest(forceRef.current), [ingest]);
 
   return (
     <div className="flex flex-col gap-6">
       <AsyncBoundary state={raceState} loading={<SkeletonRows count={5} />}>
         {(race) => (
           <>
-            <RaceHeader race={race} />
+            <RaceHeader race={race} onReingest={reingest} busy={job.isActive} />
 
             {jobError ? (
               <ErrorState
                 title="COULD NOT START THE FETCH"
                 body={jobError}
-                onRetry={startIngest}
+                onRetry={retryIngest}
               />
             ) : null}
 
@@ -143,14 +157,22 @@ function RaceDetailContent() {
         overdue={job.isOverdue}
         error={job.error}
         log={job.log}
-        onRetry={startIngest}
+        onRetry={retryIngest}
         onDismiss={() => (job.isFailed ? setJobId(null) : setDismissed(true))}
       />
     </div>
   );
 }
 
-function RaceHeader({ race }: { race: RaceDetail }) {
+function RaceHeader({
+  race,
+  onReingest,
+  busy,
+}: {
+  race: RaceDetail;
+  onReingest: () => void;
+  busy: boolean;
+}) {
   const facts = [
     { label: "LAPS", value: race.total_laps === null ? "—" : String(race.total_laps) },
     { label: "FASTEST LAP", value: race.fastest_lap_time ?? "—" },
@@ -175,7 +197,17 @@ function RaceHeader({ race }: { race: RaceDetail }) {
             {race.circuit_name} · {race.event_date}
           </div>
         </div>
-        <IngestionBadge state={race.state} />
+        <div className="flex flex-wrap items-center gap-3">
+          <IngestionBadge state={race.state} />
+          {race.state === "ingested" ? (
+            <Button variant="quiet" onClick={onReingest} disabled={busy}>
+              <span className="inline-flex items-center gap-2">
+                {busy ? "Ingesting…" : "Ingest again"}
+                <ReloadIcon spinning={busy} />
+              </span>
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-[repeat(auto-fit,minmax(min(130px,100%),1fr))] gap-px bg-line">

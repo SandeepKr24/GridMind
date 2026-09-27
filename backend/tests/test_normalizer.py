@@ -153,6 +153,22 @@ class TestIdempotence:
         assert status == "Disqualified"
         assert await count(connection, SessionResult, session_id=stored.session_id) == 2
 
+    async def test_rows_the_provider_dropped_are_removed(
+        self,
+        connection: AsyncConnection,  # noqa: F811
+    ) -> None:
+        # Upserts alone would keep a lap or pit stop that is no longer in the
+        # data, so a re-ingest would still serve it.
+        writer = SessionWriter(connection)
+        full = sample_session()
+        stored = await writer.store(full)
+
+        await writer.store(sample_session(laps=full.laps[:2], pit_stops=()))
+
+        assert await count(connection, Lap, session_id=stored.session_id) == 2
+        assert await count(connection, PitStop, session_id=stored.session_id) == 0
+        assert await count(connection, SessionResult, session_id=stored.session_id) == 2
+
     async def test_drivers_and_constructors_are_reused(
         self,
         connection: AsyncConnection,  # noqa: F811

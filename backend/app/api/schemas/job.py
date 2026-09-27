@@ -19,6 +19,8 @@ class IngestRequest(BaseModel):
     # arbitrary numbers through.
     round_number: int = Field(ge=1, le=30)
     session_type: SessionType
+    #: Fetch again even if the session is stored ("Ingest again" on the race page).
+    force: bool = False
 
 
 class IngestAccepted(BaseModel):

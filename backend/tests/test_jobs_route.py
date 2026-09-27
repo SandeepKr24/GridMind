@@ -18,7 +18,7 @@ from app.db.models.enums import JobStatus
 from app.ingestion.runner import JobRunner
 from app.main import create_app
 from tests.test_calendar_route import READER, WRITER, DatabaseDouble, SchedulesDouble, event
-from tests.test_runner import ProviderDouble, StoreDouble
+from tests.test_runner import KEY, ProviderDouble, StoreDouble
 
 TODAY = dt.datetime.now(dt.UTC).date()
 
@@ -88,6 +88,26 @@ class TestIngest:
         assert response.status_code == 202
         job_id = response.json()["job_id"]
         assert job_id in harness.store.jobs
+
+    def test_force_re_ingests_a_stored_session(self, harness: Harness) -> None:
+        harness.store.ingested.add(KEY)
+
+        response = harness.client.post("/api/ingest", json=harness.ingest(force=True))
+        harness.client.portal.call(harness.runner.wait_idle)  # type: ignore[union-attr]
+
+        assert response.status_code == 202
+        job = harness.store.jobs[response.json()["job_id"]]
+        assert job.status == JobStatus.SUCCEEDED
+        assert harness.provider.calls == [KEY]
+
+    def test_without_force_a_stored_session_is_not_fetched(self, harness: Harness) -> None:
+        harness.store.ingested.add(KEY)
+
+        response = harness.client.post("/api/ingest", json=harness.ingest())
+
+        job = harness.store.jobs[response.json()["job_id"]]
+        assert job.status == JobStatus.SKIPPED_CACHED
+        assert harness.provider.calls == []
 
     def test_a_round_not_on_the_calendar_is_404(self, harness: Harness) -> None:
         response = harness.client.post("/api/ingest", json=harness.ingest(round_number=9))

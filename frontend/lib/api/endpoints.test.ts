@@ -46,6 +46,14 @@ describe("endpoint paths", () => {
     });
   });
 
+  it("triggerIngest asks for a re-ingest only when forced", async () => {
+    await triggerIngest({ year: 2025, round: 14, session: "race", force: true });
+    expect(requestMock).toHaveBeenCalledWith("/api/ingest", {
+      method: "POST",
+      body: { season_year: 2025, round_number: 14, session_type: "race", force: true },
+    });
+  });
+
   it("getJob uses a long timeout", async () => {
     await getJob("job_1");
     expect(requestMock.mock.calls[0]?.[1]).toEqual({ timeoutMs: 30_000 });

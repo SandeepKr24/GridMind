@@ -5,7 +5,8 @@ Two properties matter more than anything else here.
 **Idempotent.** Ingesting the same session twice must update rows, never
 duplicate them. Every write goes through `INSERT ... ON CONFLICT` keyed on the
 natural key, so a re-ingest after a data correction upstream converges on the
-corrected values instead of doubling the lap count.
+corrected values instead of doubling the lap count. A session's results, laps
+and pit stops are cleared first, so rows the provider has since dropped go too.
 
 **Transactional.** A failure must leave nothing behind. The caller runs this
 inside one transaction, and `sessions.ingested_at` — the flag that means "this
@@ -114,6 +115,7 @@ class SessionWriter:
         session_id = await self._session(raw, meeting_id)
 
         driver_ids, constructor_ids = await self._people(raw, season_id)
+        await self._clear_timing(session_id)
 
         written = 0
         written += await self._results(raw, session_id, driver_ids, constructor_ids)
@@ -197,6 +199,16 @@ class SessionWriter:
             },
             ["meeting_id", "session_type"],
         )
+
+    async def _clear_timing(self, session_id: int) -> None:
+        """Drop the session's previous results, laps and pit stops.
+
+        Upserts alone would keep a row the provider has since removed, such as
+        a lap struck from the data, so a re-ingest starts from nothing. Readers
+        see the old rows until the caller's transaction commits.
+        """
+        for table in (SessionResult, Lap, PitStop):
+            await self._connection.execute(delete(table).where(table.session_id == session_id))
 
     async def _mark_ingested(self, session_id: int) -> None:
         await self._connection.execute(

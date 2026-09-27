@@ -35,6 +35,7 @@ class StoreDouble:
         self.stages: dict[str, list[JobStage]] = {}
         self.complete = True
         self.finish_attempts: list[tuple[str, JobStatus, str | None]] = []
+        self.stored: list[RawSession] = []
         self._next = 0
 
     def _new(self, key: JobKey, status: JobStatus) -> str:
@@ -105,6 +106,7 @@ class StoreDouble:
         self._set(job_id, status=status, rows_written=rows_written, error_message=error)
 
     async def store_session(self, raw: RawSession) -> StoredSession:
+        self.stored.append(raw)
         if self.complete:
             self.ingested.add(KEY)
         return StoredSession(
@@ -118,6 +120,8 @@ class ProviderDouble:
         self.gate = threading.Event()
         self.gate.set()
         self.calls: list[JobKey] = []
+        #: What a fetch returns; the complete sample session unless replaced.
+        self.session: RawSession = sample_session()
 
     def fetch_session(
         self, season: int, round_number: int, session_type: SessionType
@@ -126,7 +130,7 @@ class ProviderDouble:
         self.gate.wait(timeout=5)
         if self.error is not None:
             raise self.error
-        return sample_session()
+        return self.session
 
 
 def runner(
@@ -309,6 +313,49 @@ class TestFailures:
 
         assert second.job_id != first.job_id
         assert job.status == JobStatus.SUCCEEDED
+
+
+class TestReingest:
+    async def test_force_fetches_a_stored_session_again(self) -> None:
+        store, provider = StoreDouble(), ProviderDouble()
+        store.ingested.add(KEY)
+        jobs = runner(store, provider)
+
+        submission = await jobs.submit(KEY, force=True)
+        job = await finished(store, jobs, submission.job_id)
+
+        assert submission.is_new
+        assert job.status == JobStatus.SUCCEEDED
+        assert provider.calls == [KEY]
+        assert len(store.stored) == 1
+
+    async def test_force_attaches_to_a_fetch_already_running(self) -> None:
+        store, provider = StoreDouble(), ProviderDouble()
+        provider.gate.clear()
+        jobs = runner(store, provider)
+
+        first = await jobs.submit(KEY)
+        again = await jobs.submit(KEY, force=True)
+        provider.gate.set()
+        await jobs.wait_idle()
+
+        assert again.job_id == first.job_id
+        assert provider.calls == [KEY]
+
+    async def test_incomplete_fresh_data_keeps_the_stored_copy(self) -> None:
+        # Swapping a whole session for a partial one would lose data the
+        # user could already see.
+        store, provider = StoreDouble(), ProviderDouble()
+        store.ingested.add(KEY)
+        provider.session = sample_session(laps=(), pit_stops=(), is_partial=True)
+        jobs = runner(store, provider)
+
+        job = await finished(store, jobs, (await jobs.submit(KEY, force=True)).job_id)
+
+        assert job.status == JobStatus.FAILED
+        assert "kept" in (job.error_message or "")
+        assert store.stored == []
+        assert KEY in store.ingested
 
 
 class TestLimits:

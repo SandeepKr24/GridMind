@@ -10,10 +10,12 @@ export function getJob(jobId: string): Promise<IngestionJob> {
   });
 }
 
+/** `force` fetches a stored session again ("Ingest again" on the race page). */
 export function triggerIngest(params: {
   year: number;
   round: number;
   session: SessionType;
+  force?: boolean;
 }): Promise<{ job_id: string }> {
   return request<{ job_id: string }>(`/api/ingest`, {
     method: "POST",
@@ -21,6 +23,7 @@ export function triggerIngest(params: {
       season_year: params.year,
       round_number: params.round,
       session_type: params.session,
+      ...(params.force ? { force: true } : {}),
     },
   });
 }

@@ -6,6 +6,9 @@ polls the job row, which this runner advances stage by stage.
 
 Guarantees, and where each one lives:
 
+* **Re-ingest on request.** `force=True` fetches a stored session again and
+  replaces its rows in one transaction. If the new data is incomplete, the
+  stored copy is kept rather than swapped for a partial one.
 * **One job per session.** The partial unique index on `ingestion_jobs`
   (see `jobs.claim`). Within this process an asyncio lock also serialises
   submissions, so a request never mistakes a job being created for an orphan.
@@ -41,6 +44,10 @@ UNEXPECTED = "Something went wrong while storing this session. Try again."
 INCOMPLETE = (
     "The timing data for this session is incomplete, so it was not marked as ready. "
     "It may still be coming in; try again later."
+)
+KEPT_STORED = (
+    "The fresh timing data is incomplete, so the stored copy of this session was kept. "
+    "Try again later."
 )
 
 
@@ -102,9 +109,14 @@ class JobRunner:
         # rows look orphaned, but the real reason is known and is used instead.
         self._unrecorded: dict[str, str] = {}
 
-    async def submit(self, key: JobKey) -> Submission:
+    async def submit(self, key: JobKey, *, force: bool = False) -> Submission:
+        """Start a fetch for the session, or return the job that answers it.
+
+        `force` fetches a stored session again. It still attaches to a fetch
+        already running for the session instead of starting a second one.
+        """
         async with self._submit_lock:
-            if await self._store.is_ingested(key):
+            if not force and await self._store.is_ingested(key):
                 return Submission(await self._store.record_cached(key), is_new=False)
 
             active = await self._store.find_active(key)
@@ -124,7 +136,7 @@ class JobRunner:
                     raise IngestBusyError("the session is being claimed elsewhere")
                 return Submission(existing, is_new=False)
 
-            task = asyncio.create_task(self._run(job_id, key), name=f"ingest-{job_id}")
+            task = asyncio.create_task(self._run(job_id, key, force=force), name=f"ingest-{job_id}")
             self._tasks[job_id] = task
             task.add_done_callback(lambda _: self._tasks.pop(job_id, None))
             return Submission(job_id, is_new=True)
@@ -163,12 +175,12 @@ class JobRunner:
         await self._store.finish(job_id, JobStatus.FAILED, error=reason or INTERRUPTED)
         self._unrecorded.pop(job_id, None)
 
-    async def _run(self, job_id: str, key: JobKey) -> None:
+    async def _run(self, job_id: str, key: JobKey, *, force: bool) -> None:
         try:
             async with self._slots:
                 await self._store.start(job_id)
                 async with asyncio.timeout(self._timeout):
-                    await self._ingest(job_id, key)
+                    await self._ingest(job_id, key, force=force)
         except TimeoutError:
             await self._fail(job_id, f"The fetch took longer than {self._timeout:g} seconds.")
         except SessionNotAvailableError as error:
@@ -180,9 +192,9 @@ class JobRunner:
             logger.exception("job %s: unexpected failure for %s", job_id, key)
             await self._fail(job_id, UNEXPECTED)
 
-    async def _ingest(self, job_id: str, key: JobKey) -> None:
+    async def _ingest(self, job_id: str, key: JobKey, *, force: bool) -> None:
         # Resolving: something may have stored it while this job was queued.
-        if await self._store.is_ingested(key):
+        if not force and await self._store.is_ingested(key):
             await self._store.finish(job_id, JobStatus.SKIPPED_CACHED, rows_written=0)
             return
 
@@ -190,6 +202,10 @@ class JobRunner:
         raw = await asyncio.to_thread(
             self._provider.fetch_session, key.season_year, key.round_number, key.session_type
         )
+
+        if raw.is_partial and await self._store.is_ingested(key):
+            await self._store.finish(job_id, JobStatus.FAILED, error=KEPT_STORED)
+            return
 
         await self._store.advance(job_id, JobStage.STORING)
         stored = await self._store.store_session(raw)

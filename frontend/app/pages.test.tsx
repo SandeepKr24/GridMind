@@ -307,12 +307,64 @@ describe("Race detail", () => {
     fireEvent.click(await screen.findByText("Fetch this session"));
 
     await waitFor(() =>
-      expect(api.triggerIngest).toHaveBeenCalledWith({ year: 2025, round: 14, session: "race" })
+      expect(api.triggerIngest).toHaveBeenCalledWith({
+        year: 2025,
+        round: 14,
+        session: "race",
+        force: false,
+      })
     );
+    expect(screen.queryByText("Ingest again")).toBeTruthy(); // stored now
     expect(nav.replaced).toContain("/page?job=j1");
     expect(await screen.findByText("Classification")).toBeTruthy();
     expect(api.getRace).toHaveBeenCalledTimes(2);
     expect(nav.search).toBe(""); // job cleared from the URL once done
+  });
+
+  it("re-ingests a stored race and shows the fresh data", async () => {
+    api.getRace.mockResolvedValue(race());
+    api.triggerIngest.mockResolvedValue({ job_id: "j2" });
+    api.getJob.mockResolvedValue(job("succeeded", { id: "j2", stage: "answering" }));
+    api.getRaceStats.mockResolvedValue(stats);
+    api.getRaceReport.mockRejectedValue(notFound());
+    renderPage(<RaceDetailPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Ingest again/ }));
+
+    await waitFor(() =>
+      expect(api.triggerIngest).toHaveBeenCalledWith({
+        year: 2025,
+        round: 14,
+        session: "race",
+        force: true,
+      })
+    );
+    await waitFor(() => expect(api.getRace).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Classification")).toBeTruthy();
+    expect(nav.search).toBe("");
+  });
+
+  it("retries a failed re-ingest as a re-ingest", async () => {
+    api.getRace.mockResolvedValue(race());
+    api.getRaceStats.mockResolvedValue(stats);
+    api.getRaceReport.mockRejectedValue(notFound());
+    api.triggerIngest.mockRejectedValueOnce(new ApiError("server", "down", 500));
+    renderPage(<RaceDetailPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Ingest again/ }));
+    expect(await screen.findByText("COULD NOT START THE FETCH")).toBeTruthy();
+    api.triggerIngest.mockResolvedValue({ job_id: "j3" });
+    fireEvent.click(screen.getByRole("button", { name: "TRY AGAIN" }));
+
+    await waitFor(() => expect(api.triggerIngest).toHaveBeenCalledTimes(2));
+    expect(api.triggerIngest.mock.calls[1]?.[0]).toMatchObject({ force: true });
+  });
+
+  it("offers Ingest again only once a race is stored", async () => {
+    api.getRace.mockResolvedValue(race({ state: "available" }));
+    renderPage(<RaceDetailPage />);
+    expect(await screen.findByText("Fetch this session")).toBeTruthy();
+    expect(screen.queryByText("Ingest again")).toBeNull();
   });
 
   it("links every section tab to a section that exists on the page", async () => {

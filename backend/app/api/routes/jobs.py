@@ -4,6 +4,9 @@ Paths match `frontend/lib/api/jobs.ts`. `POST /api/ingest` is one of the
 endpoints that costs real resources, so it refuses anything that cannot
 produce data before a job is ever created: seasons out of range, rounds not on
 the calendar, and races that have not run.
+
+`force: true` re-ingests a stored session. It shares the ingest rate limit,
+so it cannot be used to keep the provider busy.
 """
 
 from __future__ import annotations
@@ -58,7 +61,7 @@ async def ingest(body: IngestRequest, request: Request) -> IngestAccepted:
     await _check_can_have_data(request, body)
     key = JobKey(body.season_year, body.round_number, body.session_type)
     try:
-        submission = await request.app.state.runner.submit(key)
+        submission = await request.app.state.runner.submit(key, force=body.force)
     except IngestBusyError as error:
         raise HTTPException(
             status_code=503,
