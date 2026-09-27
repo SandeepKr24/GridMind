@@ -25,12 +25,14 @@ from app.agent.session_context import PostgresSessionDirectory
 from app.agent.sql_agent import SqlAgent
 from app.api.rate_limit import build_rate_limits
 from app.api.routes import chat as chat_routes
+from app.api.routes import grid as grid_routes
 from app.api.routes import health, jobs, races
 from app.api.routes import reports as report_routes
 from app.api.routes import standings as standings_routes
 from app.config import Settings
 from app.db.database import Database
 from app.ingestion.fastf1_provider import FastF1Provider
+from app.ingestion.grid import GridCache, GridSource, OpenF1Client
 from app.ingestion.runner import JobRunner, PostgresJobStore
 from app.ingestion.schedule import ScheduleCache, ScheduleSource
 from app.ingestion.standings_provider import JolpicaClient
@@ -89,6 +91,7 @@ def create_app(
     llm: LLMProvider | None = None,
     chat: ChatAgent | None = None,
     reports: ReportJobs | None = None,
+    grid_source: GridSource | None = None,
 ) -> FastAPI:
     # Must happen before the first connection is opened; no-op off Windows.
     configure_event_loop()
@@ -109,6 +112,10 @@ def create_app(
         PostgresStandingsStore(db),
         JolpicaClient(settings.jolpica_base_url),
         ttl=dt.timedelta(hours=settings.standings_cache_ttl_hours),
+    )
+    current_grid = GridCache(
+        grid_source or OpenF1Client(settings.openf1_base_url),
+        ttl=dt.timedelta(hours=settings.grid_cache_ttl_hours),
     )
     # None when no key is configured; only chat depends on it.
     language_model = llm or build_llm(settings)
@@ -139,6 +146,7 @@ def create_app(
         app.state.schedules = calendar
         app.state.runner = ingestion
         app.state.standings = championship
+        app.state.grid = current_grid
         app.state.llm = language_model
         app.state.chat = chat_agent
         app.state.conversations = conversations
@@ -176,6 +184,7 @@ def create_app(
     app.include_router(races.router)
     app.include_router(jobs.router)
     app.include_router(standings_routes.router)
+    app.include_router(grid_routes.router)
     app.include_router(chat_routes.router)
     app.include_router(report_routes.router)
     return app

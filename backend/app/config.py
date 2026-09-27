@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     # --- Standings ------------------------------------------------------
     jolpica_base_url: str = "https://api.jolpi.ca/ergast/f1"
     standings_cache_ttl_hours: int = Field(default=24, gt=0)
+    # The current grid (drivers and teams pages) comes from OpenF1's latest race.
+    openf1_base_url: str = "https://api.openf1.org/v1"
+    grid_cache_ttl_hours: int = Field(default=6, gt=0)
 
     # --- Conversations --------------------------------------------------
     conversation_ttl_minutes: int = Field(default=60, gt=0)

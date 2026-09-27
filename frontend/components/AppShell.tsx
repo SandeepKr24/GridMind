@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
 import { SiteFooter } from "@/components/SiteFooter";
+import { QuickIsland } from "@/components/QuickIsland";
 import { usePublishedHeight } from "@/lib/hooks/usePublishedHeight";
 import { startSmoothScroll } from "@/lib/smoothScroll";
 import { availableSeasons } from "@/lib/hooks/useSeason";
@@ -102,11 +103,13 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      <main className="relative z-[2] mx-auto max-w-[1400px] px-5 pb-20 pt-7">
+      {/* md:pr-[76px] keeps text clear of the quick-links island (48px, 12px from the edge). */}
+      <main className="relative z-[2] mx-auto max-w-[1400px] px-5 pb-20 pt-7 md:pr-[76px]">
         {children}
       </main>
 
       <SiteFooter />
+      <QuickIsland />
     </div>
   );
 }

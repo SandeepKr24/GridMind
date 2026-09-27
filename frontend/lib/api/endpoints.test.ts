@@ -6,6 +6,7 @@ import { request } from "./client";
 import { sendChatMessage } from "./chat";
 import { didJobSucceed, getJob, isJobFinished, triggerIngest } from "./jobs";
 import { getCalendar, getDashboard, getRace, getRaceStats } from "./races";
+import { getGrid } from "./grid";
 import { generateReport, getRaceReport, getReport } from "./reports";
 import type { IngestionJob, JobStatus } from "./types";
 
@@ -16,6 +17,7 @@ beforeEach(() => requestMock.mockClear());
 describe("endpoint paths", () => {
   it.each([
     ["getCalendar", () => getCalendar(2025), "/api/seasons/2025/calendar"],
+    ["getGrid", () => getGrid(), "/api/grid"],
     ["getDashboard", () => getDashboard(2025), "/api/dashboard?season=2025"],
     ["getRace", () => getRace("2025-14"), "/api/races/2025-14"],
     ["getRaceStats", () => getRaceStats("2025-14"), "/api/races/2025-14/stats"],

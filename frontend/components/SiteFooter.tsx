@@ -31,7 +31,7 @@ function ExternalLink({ href, children }: { href: string; children: React.ReactN
 export function SiteFooter() {
   return (
     <footer className="relative z-[2] border-t border-line bg-surface-base">
-      <div className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 md:grid-cols-[2fr_1fr_1fr]">
+      <div className="mx-auto grid max-w-[1400px] gap-8 px-5 py-10 md:grid-cols-[2fr_1fr_1fr] md:pr-[76px]">
         <section aria-labelledby="footer-about">
           <h2 id="footer-about" className="gm-label m-0 mb-3">
             About
@@ -80,7 +80,7 @@ export function SiteFooter() {
       </div>
 
       <div className="border-t border-line-subtle">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-5 py-6 text-xs leading-relaxed text-ink-ghost">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-5 py-6 text-xs leading-relaxed text-ink-ghost md:pr-[76px]">
           <p className="m-0 max-w-[900px] text-pretty">
             GridMind is an unofficial project and is not associated in any way with the
             Formula 1 companies. F1, FORMULA ONE, FORMULA 1, FIA FORMULA ONE WORLD

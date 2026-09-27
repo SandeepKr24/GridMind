@@ -249,3 +249,27 @@ export interface DashboardSummary {
   latest_podium: ClassificationRow[];
   latest_report: Report | null;
 }
+
+/* ---------- Current grid (GET /api/grid) ---------- */
+
+export interface GridDriver {
+  number: number;
+  code: string;
+  first_name: string;
+  last_name: string;
+  team_name: string;
+  /** "#RRGGBB", or null when the source sent nothing usable. */
+  team_colour: string | null;
+  /** An official headshot on media.formula1.com, or null. */
+  headshot_url: string | null;
+}
+
+/** The drivers of the latest race, which is the grid as it stands. */
+export interface CurrentGrid {
+  season: number;
+  race_location: string;
+  race_date: string;
+  fetched_at: string | null;
+  is_stale: boolean;
+  drivers: GridDriver[];
+}

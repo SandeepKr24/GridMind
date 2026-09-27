@@ -21,6 +21,12 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_TEAM_LOGOS: teamLogos(),
   },
+  images: {
+    // Official driver headshots, linked from Formula 1's media server (the
+    // URLs OpenF1 publishes). Served as-is with `unoptimized`; this list only
+    // stops next/image accepting any other remote host.
+    remotePatterns: [new URL("https://media.formula1.com/**")],
+  },
 };
 
 export default nextConfig;
