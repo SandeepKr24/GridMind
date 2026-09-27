@@ -92,11 +92,15 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
     },
     {
       label: "AVG COLD FETCH",
+      // Nothing fetched yet: show the usual range rather than a blank.
       value:
         data.average_cold_fetch_seconds === null
-          ? "—"
+          ? "30 - 120 s"
           : `${Math.round(data.average_cold_fetch_seconds)}s`,
-      sub: "session pull from the timing API",
+      sub:
+        data.average_cold_fetch_seconds === null
+          ? "typical session pull from the timing API"
+          : "session pull from the timing API",
     },
     {
       label: "REPORTS WRITTEN",

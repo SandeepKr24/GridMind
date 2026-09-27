@@ -243,7 +243,8 @@ describe("Dashboard", () => {
     expect(await screen.findByText("No results yet")).toBeTruthy();
     expect(screen.getByText("No report yet")).toBeTruthy();
     expect(screen.getByText("of 24 on the calendar")).toBeTruthy();
-    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("30 - 120 s")).toBeTruthy();
+    expect(screen.getByText("typical session pull from the timing API")).toBeTruthy();
     expect(api.getDashboard).toHaveBeenCalledWith(new Date().getFullYear());
   });
 
