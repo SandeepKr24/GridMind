@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
 import { usePublishedHeight } from "@/lib/hooks/usePublishedHeight";
+import { startSmoothScroll } from "@/lib/smoothScroll";
 import { availableSeasons } from "@/lib/hooks/useSeason";
 
 const NAV = [
@@ -20,6 +21,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const headerRef = useRef<HTMLElement>(null);
 
   usePublishedHeight(headerRef, "--header-height");
+
+  // Eased wheel scrolling, off under reduced motion.
+  useEffect(() => (reducedMotion ? undefined : startSmoothScroll()), [reducedMotion]);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

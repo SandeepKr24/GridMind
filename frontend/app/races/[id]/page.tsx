@@ -35,6 +35,7 @@ import {
   RaceControlList,
 } from "@/components/race/RaceTables";
 import { formatTimestamp } from "@/lib/format";
+import { scrollToElement } from "@/lib/smoothScroll";
 import type { RaceDetail, RaceStats, Report } from "@/lib/api/types";
 
 const SECTIONS = [
@@ -313,7 +314,11 @@ function IngestedRace({ race, raceId }: { race: RaceDetail; raceId: string }) {
             </div>
 
             <Panel as="section" className="p-[22px]" id="events">
-              <SectionHeading>Race Control</SectionHeading>
+              <SectionHeading
+                right={`${stats.race_control.length} ${stats.race_control.length === 1 ? "message" : "messages"}`}
+              >
+                Race Control
+              </SectionHeading>
               <RaceControlList events={stats.race_control} />
             </Panel>
           </div>
@@ -348,7 +353,7 @@ function SectionNav() {
     const target = document.getElementById(id);
     if (!target) return; // let the browser handle it
     event.preventDefault();
-    target.scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth", block: "start" });
+    scrollToElement(target, reducedMotion);
     // Keep the link shareable without triggering the browser's own jump.
     window.history.replaceState(null, "", `#${id}`);
   };

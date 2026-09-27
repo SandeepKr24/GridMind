@@ -132,25 +132,35 @@ export function RaceControlList({ events }: { events: RaceControlEvent[] }) {
     );
   }
 
+  // A race can have a hundred messages or more, so the list scrolls inside
+  // its panel. Focusable, so keyboard users can scroll it too.
   return (
-    <ol className="flex list-none flex-col gap-px bg-line-faint p-0">
-      {events.map((event, i) => (
-        <li key={i} className="bg-surface-inset px-4 py-3">
-          <div className="flex items-baseline gap-3">
-            <span className="shrink-0 font-mono text-xs text-accent">
-              {event.lap === null ? "—" : `L${event.lap}`}
-            </span>
-            <div className="min-w-0">
-              <div className="font-display text-sm uppercase tracking-[0.1em] text-ink-dim">
-                {event.event_type}
+    <div
+      role="region"
+      aria-label="Race control messages"
+      tabIndex={0}
+      data-lenis-prevent
+      className="gm-scroll-box max-h-[min(480px,60vh)] overflow-y-auto overscroll-contain"
+    >
+      <ol className="m-0 flex list-none flex-col gap-px bg-line-faint p-0">
+        {events.map((event, i) => (
+          <li key={i} className="bg-surface-inset px-4 py-3">
+            <div className="flex items-baseline gap-3">
+              <span className="shrink-0 font-mono text-xs text-accent">
+                {event.lap === null ? "—" : `L${event.lap}`}
+              </span>
+              <div className="min-w-0">
+                <div className="font-display text-sm uppercase tracking-[0.1em] text-ink-dim">
+                  {event.event_type}
+                </div>
+                <p className="m-0 mt-1 text-sm leading-relaxed text-ink-muted text-pretty">
+                  {event.message}
+                </p>
               </div>
-              <p className="m-0 mt-1 text-sm leading-relaxed text-ink-muted text-pretty">
-                {event.message}
-              </p>
             </div>
-          </div>
-        </li>
-      ))}
-    </ol>
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }

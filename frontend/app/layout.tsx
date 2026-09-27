@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Titillium_Web } from "next/font/google";
 import { AppShell } from "@/components/AppShell";
 import { SettingsProvider } from "@/components/SettingsProvider";
+import "lenis/dist/lenis.css";
 import "./globals.css";
 
 // Body and interface text. Stays legible at small sizes, which labels and

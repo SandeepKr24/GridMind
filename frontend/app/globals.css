@@ -62,6 +62,12 @@
     @apply font-display font-semibold uppercase tracking-[0.06em] text-ink-dim;
   }
 
+  /* A panel body that scrolls by itself: a thin scrollbar in the theme's colours. */
+  .gm-scroll-box {
+    scrollbar-width: thin;
+    scrollbar-color: theme("colors.ink.trace") transparent;
+  }
+
   /* Screen-reader-only, used for the Loading Pit live region. */
   .gm-sr-only {
     position: absolute;

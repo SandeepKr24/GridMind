@@ -221,6 +221,21 @@ describe("RaceControlList", () => {
     expect(screen.getByText("—")).toBeTruthy();
   });
 
+  it("scrolls inside its panel instead of stretching the page", () => {
+    render(
+      <RaceControlList
+        events={[{ lap: 1, event_type: "FLAG", message: "GREEN FLAG", timestamp: null }]}
+      />
+    );
+    const box = screen.getByRole("region", { name: "Race control messages" });
+    expect(box.className).toContain("overflow-y-auto");
+    expect(box.className).toContain("max-h-");
+    // Keyboard users can focus it and scroll with the arrow keys.
+    expect(box.getAttribute("tabindex")).toBe("0");
+    // Smooth page scrolling leaves it alone.
+    expect(box.hasAttribute("data-lenis-prevent")).toBe(true);
+  });
+
   it("has an empty state", () => {
     render(<RaceControlList events={[]} />);
     expect(screen.getByText("No race control messages")).toBeTruthy();
