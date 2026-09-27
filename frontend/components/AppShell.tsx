@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useSettings } from "@/components/SettingsProvider";
+import { SiteFooter } from "@/components/SiteFooter";
 import { usePublishedHeight } from "@/lib/hooks/usePublishedHeight";
 import { startSmoothScroll } from "@/lib/smoothScroll";
 import { availableSeasons } from "@/lib/hooks/useSeason";
@@ -104,6 +105,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="relative z-[2] mx-auto max-w-[1400px] px-5 pb-20 pt-7">
         {children}
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

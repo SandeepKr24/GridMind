@@ -698,4 +698,22 @@ describe("AppShell", () => {
     expect(await screen.findByText("SOUND ON")).toBeTruthy();
     expect(screen.getByText("content")).toBeTruthy();
   });
+
+  it("ends every page with the footer: about, feedback, sources and trademarks", () => {
+    render(
+      <SettingsProvider>
+        <AppShell>
+          <p>content</p>
+        </AppShell>
+      </SettingsProvider>
+    );
+
+    const footer = screen.getByRole("contentinfo");
+    expect(within(footer).getByText(/built by Sandeep Kumar/)).toBeTruthy();
+    const issues = within(footer).getByRole("link", { name: "Suggestions & problems" });
+    expect(issues.getAttribute("href")).toBe("https://github.com/SandeepKr24/GridMind/issues");
+    expect(issues.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(within(footer).getByText(/trademarks of Formula One Licensing B\.V\./)).toBeTruthy();
+    expect(within(footer).getByText(`© ${new Date().getFullYear()} GridMind`)).toBeTruthy();
+  });
 });
