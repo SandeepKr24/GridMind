@@ -1,4 +1,5 @@
 const REPO_URL = "https://github.com/SandeepKr24/GridMind";
+const PORTFOLIO_URL = "https://sandeepkumar24.vercel.app/";
 
 const LINKS = [
   { href: `${REPO_URL}/issues`, label: "Suggestions & problems" },
@@ -36,9 +37,17 @@ export function SiteFooter() {
             About
           </h2>
           <p className="m-0 max-w-[460px] text-sm leading-relaxed text-ink-muted text-pretty">
-            GridMind is an AI race analyst for Formula 1, built by Sandeep Kumar. Ask a
-            question in plain English and it answers from real timing data, fetched the
-            first time a race is needed and stored after that.
+            GridMind is an AI race analyst for Formula 1, built by{" "}
+            <a
+              href={PORTFOLIO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-accent-bright no-underline underline-offset-2 transition-colors hover:text-accent-soft hover:underline"
+            >
+              Sandeep Kumar
+            </a>
+            . Ask a question in plain English and it answers from real timing data,
+            fetched the first time a race is needed and stored after that.
           </p>
         </section>
 

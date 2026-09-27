@@ -709,7 +709,10 @@ describe("AppShell", () => {
     );
 
     const footer = screen.getByRole("contentinfo");
-    expect(within(footer).getByText(/built by Sandeep Kumar/)).toBeTruthy();
+    const creator = within(footer).getByRole("link", { name: "Sandeep Kumar" });
+    expect(creator.getAttribute("href")).toBe("https://sandeepkumar24.vercel.app/");
+    expect(creator.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(creator.className).toContain("text-accent-bright");
     const issues = within(footer).getByRole("link", { name: "Suggestions & problems" });
     expect(issues.getAttribute("href")).toBe("https://github.com/SandeepKr24/GridMind/issues");
     expect(issues.getAttribute("rel")).toBe("noopener noreferrer");
