@@ -78,6 +78,9 @@ class Resolution:
 
     entities: ResolvedEntities | None = None
     clarifying_question: str | None = None
+    #: The message rewritten to stand alone ("2026" after "Which year's
+    #: Monza?" becomes the full question), when the model gave one.
+    question: str | None = None
 
     def __post_init__(self) -> None:
         if (self.entities is None) == (self.clarifying_question is None):

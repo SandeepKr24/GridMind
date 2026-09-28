@@ -4,11 +4,18 @@ from __future__ import annotations
 
 import datetime as dt
 
-from app.agent.conversations import MAX_PENDING, MAX_TURNS, ConversationStore, Turn
+from app.agent.conversations import (
+    MAX_PENDING,
+    MAX_TURNS,
+    ConversationStore,
+    ResolvedQuestion,
+    Turn,
+)
 from app.agent.entities import Intent, ResolvedEntities
 
 SPA = ResolvedEntities(Intent.SESSION, drivers=("Norris",))
 STANDINGS = ResolvedEntities(Intent.STANDINGS, year=2024)
+AT_SPA = ResolvedQuestion("Who won at Spa 2024?", SPA)
 
 
 class Clock:
@@ -85,7 +92,18 @@ class TestTurns:
         assert conversation.previous_entities() is SPA
 
     def test_a_new_conversation_has_nothing_previous(self) -> None:
-        assert store(Clock()).create().previous_entities() is None
+        conversation = store(Clock()).create()
+
+        assert conversation.previous_entities() is None
+        assert conversation.last_turn() is None
+
+    def test_the_last_turn_includes_a_clarification(self) -> None:
+        conversation = store(Clock()).create()
+        conversation.record(Turn("Who won at Spa 2024?", "Hamilton", SPA))
+        asked_back = Turn("Who won at Monza?", "Which year's Monza do you mean?", None, True)
+        conversation.record(asked_back)
+
+        assert conversation.last_turn() is asked_back
 
     def test_only_the_last_turns_are_kept(self) -> None:
         conversation = store(Clock()).create()
@@ -99,17 +117,17 @@ class TestTurns:
 class TestPending:
     def test_a_pending_question_is_found_despite_spacing_and_case(self) -> None:
         conversation = store(Clock()).create()
-        conversation.remember_pending("Who won at  Spa 2024?", SPA)
+        conversation.remember_pending("Who won at  Spa 2024?", AT_SPA)
 
-        assert conversation.take_pending("who won at spa 2024?") is SPA
+        assert conversation.take_pending("who won at spa 2024?") is AT_SPA
         # Taken once: a second ask resolves afresh.
         assert conversation.take_pending("who won at spa 2024?") is None
 
     def test_pending_questions_are_bounded(self) -> None:
         conversation = store(Clock()).create()
         for i in range(MAX_PENDING + 2):
-            conversation.remember_pending(f"q{i}", SPA)
+            conversation.remember_pending(f"q{i}", AT_SPA)
 
         assert len(conversation.pending) == MAX_PENDING
         assert conversation.take_pending("q0") is None
-        assert conversation.take_pending(f"q{MAX_PENDING + 1}") is SPA
+        assert conversation.take_pending(f"q{MAX_PENDING + 1}") is AT_SPA

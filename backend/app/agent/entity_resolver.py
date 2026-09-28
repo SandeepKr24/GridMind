@@ -10,7 +10,9 @@ here is ordinary Python against the published calendar:
 - a race with no year, a name that matches two events, or a session the
   weekend did not have becomes a clarifying question, not a guess;
 - a follow-up ("and Leclerc?", "what about qualifying?") inherits the
-  previous turn's race.
+  previous turn's race;
+- a reply to a clarifying question ("2026" after "Which year's Monza do you
+  mean?") completes the question it answers.
 
 Standings and season-wide questions need a season, not a race, and default to
 the current one — flagged, so the answer can say it assumed.
@@ -22,6 +24,7 @@ import datetime as dt
 from collections.abc import Callable
 from dataclasses import replace
 
+from app.agent.conversations import Turn
 from app.agent.entities import (
     SESSION_LABELS,
     Intent,
@@ -39,6 +42,8 @@ from app.llm import LLMProvider
 WHICH_RACE = 'Which race do you mean? For example, "the 2024 British Grand Prix".'
 #: User text is echoed back in clarifying questions; keep it short.
 MAX_ECHO = 60
+#: Joins a follow-up to the earlier question it leans on.
+FOLLOW_UP = " Follow-up: "
 
 
 class CalendarUnavailableError(RuntimeError):
@@ -66,9 +71,15 @@ class EntityResolver:
         self._calendar = calendar
         self._today = today
 
-    async def resolve(self, question: str, previous: ResolvedEntities | None = None) -> Resolution:
-        mentions = await extract_mentions(self._llm, question, previous)
-        return await self.resolve_mentions(mentions, previous)
+    async def resolve(
+        self,
+        question: str,
+        previous: ResolvedEntities | None = None,
+        earlier: Turn | None = None,
+    ) -> Resolution:
+        mentions = await extract_mentions(self._llm, question, previous, earlier)
+        resolution = await self.resolve_mentions(mentions, previous)
+        return replace(resolution, question=_standalone(question, mentions, earlier))
 
     async def resolve_mentions(
         self, mentions: Mentions, previous: ResolvedEntities | None = None
@@ -239,6 +250,27 @@ class EntityResolver:
         if reference == "latest":
             return next((e for day, _, e in reversed(dated) if day < today), None)
         return next((e for day, _, e in dated if day >= today), None)
+
+
+def _standalone(message: str, mentions: Mentions, earlier: Turn | None) -> str | None:
+    """The message as the SQL and answer models should read it, if not as sent.
+
+    A reply to a clarifying question was merged by the model. A follow-up is
+    joined to the question it leans on: "And Leclerc?" alone does not say
+    what to look up about Leclerc. So is a reply the model left unmerged: it
+    tends to leave "Hamilton" as it is after "No driver called Schumacher
+    took part".
+    """
+    merged = mentions.question
+    if merged is not None and merged.casefold() != " ".join(message.split()).casefold():
+        return merged
+    if not mentions.follow_up or earlier is None:
+        return None
+    if earlier.entities is None and not earlier.clarifying:
+        return None  # a refusal: nothing to lean on
+    # Chained follow-ups keep only the latest, so the text stays bounded.
+    base = earlier.question.split(FOLLOW_UP)[0]
+    return f"{base}{FOLLOW_UP}{' '.join(message.split())}"
 
 
 def _session_of(

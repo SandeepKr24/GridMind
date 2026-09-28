@@ -1,5 +1,6 @@
 # Secrets
 # .env.* also covers .env.local, which the Neon CLI rewrites on every deploy.
+
 .env
 .env.*
 !.env.example
@@ -43,15 +44,16 @@ Thumbs.db
 # Neon CLI local state (project link, pulled env vars)
 .neon
 
-# Vendored agent skills. These are third-party docs fetched from
-# neondatabase/agent-skills; skills-lock.json pins the versions and hashes, so
-# `neon skills -y` restores them. Project-level .claude config is not ignored.
+# Vendored agent skills.
 .claude/skills/
 
-# Local-only documents, deliberately never pushed
+# Local-only documents
 F1_Race_Analyst_*.md
 JOURNAL.md
 
-# Brand source artwork. The files the site serves are copied into frontend/app
-# and frontend/public, since Vercel only sees what is committed.
+# Brand source artwork.
 Logo/
+audio/
+
+# Brag skill output
+brag-output/

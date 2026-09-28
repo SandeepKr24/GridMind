@@ -6,6 +6,14 @@ arithmetic, calendar lookup and every judgement about ambiguity happen in
 Python (`entity_resolver.py`), because the model's sense of "last year" or of
 which round Monza is can be wrong, and those errors would be silent.
 
+When the previous turn asked the user something back, the call also merges
+the reply into the question it answers: "2026" after "Which year's Monza do
+you mean?" becomes "Who won at Monza in 2026?". Only then does the prompt
+change. With a rewrite field on every message, gpt-oss deliberated past its
+token budget on plain follow-ups ("and Leclerc?") and wrote no JSON at all;
+follow-ups are joined to their earlier question in Python instead
+(`entity_resolver.py`).
+
 The prompt is short on purpose: the free tier allows 8K tokens a minute, and
 this call runs on every chat message.
 """
@@ -23,6 +31,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.agent.conversations import Turn
 from app.agent.entities import Intent, ResolvedEntities
 from app.db.models.enums import SessionType
 from app.llm import JsonSchema, LLMInvalidResponseError, LLMProvider, Message
@@ -33,6 +42,8 @@ MAX_TARGETS = 4
 MAX_NAMES = 6
 #: Reasoning models spend completion tokens thinking before the JSON starts.
 MAX_TOKENS = 1024
+#: Earlier turns are quoted to the model; keep a long one from eating the budget.
+MAX_QUOTE = 300
 
 Reference = Literal["first", "latest", "next"]
 RelativeYear = Literal["current", "previous"]
@@ -64,6 +75,9 @@ class TargetMention(BaseModel):
 class Mentions(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
+    #: The earlier question completed by this reply to a clarifying question;
+    #: None for any other message.
+    question: str | None = None
     intent: Intent
     year: int | None = None
     relative_year: RelativeYear | None = None
@@ -71,6 +85,11 @@ class Mentions(BaseModel):
     drivers: tuple[str, ...] = Field(default=())
     constructors: tuple[str, ...] = Field(default=())
     follow_up: bool = False
+
+    @field_validator("question")
+    @classmethod
+    def _blank_question_is_none(cls, value: str | None) -> str | None:
+        return " ".join(value.split()) or None if value is not None else None
 
     @field_validator("targets")
     @classmethod
@@ -162,6 +181,21 @@ constructors: teams named.
 follow_up: true only if the question cannot be understood without the previous
 question, e.g. "and Leclerc?" or "what about qualifying?"."""
 
+#: Only sent when the previous turn asked the user something back.
+REPLY_SCHEMA = JsonSchema(
+    name=SCHEMA.name,
+    schema=_object({"question": {"type": "string"}, **SCHEMA.schema["properties"]}),
+)
+
+REPLY_PROMPT = f"""\
+{SYSTEM_PROMPT}
+
+You asked the user something back, and the question may be their reply.
+question: if it is, the earlier question completed by the reply, and every
+other field describes that completed question. Earlier "Who won at Monza?",
+you asked "Which year's Monza do you mean?", reply "2026" -> "Who won at Monza
+in 2026?". If it is a new, complete question instead, repeat it unchanged."""
+
 
 def _context_line(previous: ResolvedEntities) -> str:
     parts = [s.describe() for s in previous.sessions]
@@ -172,11 +206,29 @@ def _context_line(previous: ResolvedEntities) -> str:
     return "Previous question was about: " + ("; ".join(parts) or previous.intent.value)
 
 
-def build_messages(question: str, previous: ResolvedEntities | None) -> list[Message]:
-    user = f"Question: {question.strip()}"
+def _quote(text: str) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= MAX_QUOTE else text[: MAX_QUOTE - 1] + "…"
+
+
+def build_messages(
+    question: str, previous: ResolvedEntities | None, earlier: Turn | None = None
+) -> list[Message]:
+    lines = []
     if previous is not None:
-        user = f"{_context_line(previous)}\n{user}"
-    return [Message("system", SYSTEM_PROMPT), Message("user", user)]
+        lines.append(_context_line(previous))
+    replying = _asked_back(earlier)
+    if replying is not None:
+        lines.append(f"Earlier question: {_quote(replying.question)}")
+        lines.append(f"You asked: {_quote(replying.answer)}")
+    lines.append(f"Question: {question.strip()}")
+    system = SYSTEM_PROMPT if replying is None else REPLY_PROMPT
+    return [Message("system", system), Message("user", "\n".join(lines))]
+
+
+def _asked_back(earlier: Turn | None) -> Turn | None:
+    """The earlier turn, if it was a question back the message may answer."""
+    return earlier if earlier is not None and earlier.clarifying else None
 
 
 def parse_mentions(payload: dict[str, Any]) -> Mentions:
@@ -189,9 +241,13 @@ def parse_mentions(payload: dict[str, Any]) -> Mentions:
 
 
 async def extract_mentions(
-    llm: LLMProvider, question: str, previous: ResolvedEntities | None = None
+    llm: LLMProvider,
+    question: str,
+    previous: ResolvedEntities | None = None,
+    earlier: Turn | None = None,
 ) -> Mentions:
+    schema = SCHEMA if _asked_back(earlier) is None else REPLY_SCHEMA
     completion = await llm.complete(
-        build_messages(question, previous), schema=SCHEMA, max_tokens=MAX_TOKENS
+        build_messages(question, previous, earlier), schema=schema, max_tokens=MAX_TOKENS
     )
     return parse_mentions(completion.json())

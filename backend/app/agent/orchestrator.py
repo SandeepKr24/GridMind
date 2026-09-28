@@ -6,6 +6,10 @@
                                ingesting -> job id; the frontend asks again
                                ready     -> SQL agent -> answer
 
+Resolving also rewrites the message to stand alone, using the previous turn
+("2026" after "Which year's Monza do you mean?" becomes the whole question).
+Everything after it works from that rewrite, never from the raw message.
+
 Only three steps cost tokens: resolving, writing SQL, and writing the answer.
 Everything that can be said without the model is: clarifications, refusals,
 "the data cannot answer this", and failures.
@@ -22,7 +26,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from app.agent.answer_generator import AnswerTable, build_table, generate_answer
-from app.agent.conversations import Conversation, Turn
+from app.agent.conversations import Conversation, ResolvedQuestion, Turn
 from app.agent.entities import Intent, Resolution, ResolvedEntities
 from app.agent.ingestion_gate import GateDecision, GateStatus
 from app.agent.sql_agent import SqlOutcome, SqlStatus
@@ -63,7 +67,10 @@ class ChatReply:
 
 class Resolver(Protocol):
     async def resolve(
-        self, question: str, previous: ResolvedEntities | None = None
+        self,
+        question: str,
+        previous: ResolvedEntities | None = None,
+        earlier: Turn | None = None,
     ) -> Resolution: ...
 
 
@@ -110,24 +117,35 @@ class ChatAgent:
         self._sql = sql
         self._standings = standings
 
-    async def ask(self, question: str, conversation: Conversation) -> ChatReply:
-        reply = await self._reply(question, conversation)
+    async def ask(self, message: str, conversation: Conversation) -> ChatReply:
+        question, reply = await self._reply(message, conversation)
         # A fetch in progress is not an answer; the question comes back later.
         if reply.job_id is None:
-            unresolved = reply.clarifying_question is not None or reply.refused
-            remembered = None if unresolved else reply.entities
-            conversation.record(Turn(question, reply.answer, remembered))
+            clarifying = reply.clarifying_question is not None
+            remembered = None if clarifying or reply.refused else reply.entities
+            conversation.record(Turn(question, reply.answer, remembered, clarifying))
         return reply
 
-    async def _reply(self, question: str, conversation: Conversation) -> ChatReply:
-        entities = conversation.take_pending(question)
-        if entities is None:
-            resolution = await self._resolver.resolve(question, conversation.previous_entities())
-            if resolution.clarifying_question is not None:
-                return _clarify(resolution.clarifying_question)
-            assert resolution.entities is not None
-            entities = resolution.entities
+    async def _reply(self, message: str, conversation: Conversation) -> tuple[str, ChatReply]:
+        """The question as understood, and the reply to it."""
+        pending = conversation.take_pending(message)
+        if pending is not None:
+            return pending.question, await self._answer(message, pending, conversation)
 
+        resolution = await self._resolver.resolve(
+            message, conversation.previous_entities(), conversation.last_turn()
+        )
+        question = resolution.question or message
+        if resolution.clarifying_question is not None:
+            return question, _clarify(resolution.clarifying_question)
+        assert resolution.entities is not None
+        resolved = ResolvedQuestion(question, resolution.entities)
+        return question, await self._answer(message, resolved, conversation)
+
+    async def _answer(
+        self, message: str, resolved: ResolvedQuestion, conversation: Conversation
+    ) -> ChatReply:
+        question, entities = resolved.question, resolved.entities
         if entities.intent is Intent.UNSUPPORTED:
             return ChatReply(answer=UNSUPPORTED)
         if entities.intent is Intent.STANDINGS:
@@ -139,7 +157,8 @@ class ChatAgent:
                 answer=decision.message or UNSUPPORTED, entities=entities, refused=True
             )
         if decision.status is GateStatus.INGESTING:
-            conversation.remember_pending(question, entities)
+            # The frontend re-sends the raw message once the fetch lands.
+            conversation.remember_pending(message, resolved)
             fetching = ", ".join(f"the {s.describe()}" for s in decision.waiting_on)
             return ChatReply(
                 answer=f"Fetching the timing data for {fetching}. This can take a minute.",

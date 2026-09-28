@@ -7,11 +7,14 @@ to start afresh.
 The store is bounded two ways so a public site cannot grow it without limit:
 conversations idle past the TTL are dropped, and past `max_conversations` the
 least recently used goes first. Each conversation keeps only its last few
-turns, because only the most recent one is ever sent to the model.
+turns, because only the most recent ones are ever sent to the model: the last
+turn's text, so a reply like "2026" can complete the question it answers, and
+the last resolved turn's entities, so "and Leclerc?" keeps the race.
 
-It also remembers what a question waiting on ingestion resolved to. The
-frontend asks the same question again once the fetch lands, and resolving it
-a second time would spend an LLM call to learn what we already knew.
+It also remembers what a question waiting on ingestion resolved to, and what
+it was understood to ask. The frontend asks the same text again once the
+fetch lands, and resolving it a second time would spend an LLM call to learn
+what we already knew (and could lose the earlier turn it leaned on).
 """
 
 from __future__ import annotations
@@ -25,7 +28,7 @@ from dataclasses import dataclass, field
 
 from app.agent.entities import ResolvedEntities
 
-#: Turns kept per conversation. Only the last is used; the rest are headroom.
+#: Turns kept per conversation. Only the last few are used; the rest are headroom.
 MAX_TURNS = 6
 #: Questions waiting on a fetch, per conversation.
 MAX_PENDING = 4
@@ -33,10 +36,23 @@ MAX_PENDING = 4
 
 @dataclass(frozen=True, slots=True)
 class Turn:
+    #: The question as it was understood: a reply like "2026" is stored as
+    #: the full question it completed.
     question: str
     answer: str
     #: None when the turn resolved nothing (a clarification, a refusal).
     entities: ResolvedEntities | None
+    #: The answer was a question back to the user, so the next message may
+    #: be the reply to it.
+    clarifying: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedQuestion:
+    """A question as understood: its standalone text and what it resolved to."""
+
+    question: str
+    entities: ResolvedEntities
 
 
 @dataclass(slots=True)
@@ -44,7 +60,7 @@ class Conversation:
     id: str
     last_active: float
     turns: deque[Turn] = field(default_factory=lambda: deque(maxlen=MAX_TURNS))
-    pending: OrderedDict[str, ResolvedEntities] = field(default_factory=OrderedDict)
+    pending: OrderedDict[str, ResolvedQuestion] = field(default_factory=OrderedDict)
 
     # No lock: two overlapping requests on one conversation (a double submit)
     # can both resolve and both append. Harmless beyond the duplicated work,
@@ -54,17 +70,21 @@ class Conversation:
         """What the most recent turn that resolved anything was about."""
         return next((t.entities for t in reversed(self.turns) if t.entities), None)
 
+    def last_turn(self) -> Turn | None:
+        return self.turns[-1] if self.turns else None
+
     def record(self, turn: Turn) -> None:
         self.turns.append(turn)
 
-    def remember_pending(self, question: str, entities: ResolvedEntities) -> None:
-        self.pending[_key(question)] = entities
-        self.pending.move_to_end(_key(question))
+    def remember_pending(self, message: str, pending: ResolvedQuestion) -> None:
+        """Keyed by the text the frontend will send again, not the rewrite."""
+        self.pending[_key(message)] = pending
+        self.pending.move_to_end(_key(message))
         while len(self.pending) > MAX_PENDING:
             self.pending.popitem(last=False)
 
-    def take_pending(self, question: str) -> ResolvedEntities | None:
-        return self.pending.pop(_key(question), None)
+    def take_pending(self, message: str) -> ResolvedQuestion | None:
+        return self.pending.pop(_key(message), None)
 
 
 def _key(question: str) -> str:

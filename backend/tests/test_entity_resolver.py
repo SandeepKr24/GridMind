@@ -11,6 +11,7 @@ from typing import Any
 
 import pytest
 
+from app.agent.conversations import Turn
 from app.agent.entities import (
     Intent,
     Resolution,
@@ -18,7 +19,15 @@ from app.agent.entities import (
     ResolvedSession,
 )
 from app.agent.entity_resolver import WHICH_RACE, CalendarUnavailableError, EntityResolver
-from app.agent.mentions import SCHEMA, Mentions, parse_mentions
+from app.agent.mentions import (
+    MAX_QUOTE,
+    REPLY_PROMPT,
+    REPLY_SCHEMA,
+    SCHEMA,
+    SYSTEM_PROMPT,
+    Mentions,
+    parse_mentions,
+)
 from app.db.models.enums import SessionType
 from app.ingestion.base import RawEvent
 from app.llm import Completion, JsonSchema, LLMInvalidResponseError, Message
@@ -542,6 +551,108 @@ class TestEndToEnd:
             "Question: and Leclerc?"
         )
 
+    async def test_a_reply_to_a_clarification_is_sent_with_what_it_answers(self) -> None:
+        llm = FakeLLM(
+            '{"question": "Who gained the most positions at Monza in 2024?", '
+            '"intent": "session", "targets": [{"race": "Monza", "year": 2024}]}'
+        )
+        asked_back = Turn(
+            "Who gained the most positions at Monza?", "Which year's Monza do you mean?", None, True
+        )
+
+        resolution = await resolver(llm=llm).resolve("2024", None, asked_back)
+
+        messages, schema = llm.calls[0]
+        assert schema is REPLY_SCHEMA
+        assert messages[0].content == REPLY_PROMPT
+        assert messages[1].content == (
+            "Earlier question: Who gained the most positions at Monza?\n"
+            "You asked: Which year's Monza do you mean?\n"
+            "Question: 2024"
+        )
+        assert only_session(resolution).round_number == 16
+        assert resolution.question == "Who gained the most positions at Monza in 2024?"
+
+    async def test_a_follow_up_keeps_the_usual_prompt_and_is_joined_to_its_question(
+        self,
+    ) -> None:
+        llm = FakeLLM('{"intent": "session", "follow_up": true, "drivers": ["Leclerc"]}')
+        answered = Turn("Where did Norris finish at Monza 2024?", "Norris was P2.", previous_turn())
+
+        resolution = await resolver(llm=llm).resolve("and  Leclerc?", previous_turn(), answered)
+
+        messages, schema = llm.calls[0]
+        assert schema is SCHEMA
+        assert messages[0].content == SYSTEM_PROMPT
+        assert messages[1].content == (
+            "Previous question was about: 2024 Italian Grand Prix race; drivers Norris\n"
+            "Question: and  Leclerc?"
+        )
+        assert resolution.question == (
+            "Where did Norris finish at Monza 2024? Follow-up: and Leclerc?"
+        )
+
+    async def test_chained_follow_ups_keep_only_the_latest(self) -> None:
+        llm = FakeLLM('{"intent": "session", "follow_up": true, "drivers": ["Hamilton"]}')
+        joined = Turn(
+            "Where did Norris finish at Monza 2024? Follow-up: and Leclerc?", "P1", previous_turn()
+        )
+
+        resolution = await resolver(llm=llm).resolve("and Hamilton?", previous_turn(), joined)
+
+        assert resolution.question == (
+            "Where did Norris finish at Monza 2024? Follow-up: and Hamilton?"
+        )
+
+    async def test_a_reply_the_model_left_unmerged_is_joined_to_what_it_answers(self) -> None:
+        llm = FakeLLM('{"question": "Hamilton", "intent": "session", "follow_up": true}')
+        asked_back = Turn(
+            "Where did Schumacher finish?", 'No driver called "Schumacher" took part.', None, True
+        )
+
+        resolution = await resolver(llm=llm).resolve("Hamilton", previous_turn(), asked_back)
+
+        assert resolution.question == "Where did Schumacher finish? Follow-up: Hamilton"
+
+    async def test_a_new_question_after_a_clarification_stands_as_it_is(self) -> None:
+        llm = FakeLLM(
+            '{"question": "Who won the 2024 British GP?", "intent": "session", '
+            '"targets": [{"race": "British GP", "year": 2024}]}'
+        )
+        asked_back = Turn("Who won at Monza?", "Which year's Monza do you mean?", None, True)
+
+        resolution = await resolver(llm=llm).resolve(
+            "Who won the 2024 British GP?", None, asked_back
+        )
+
+        assert only_session(resolution).round_number == 12
+        assert resolution.question is None
+
+    async def test_nothing_is_joined_to_a_refused_turn(self) -> None:
+        llm = FakeLLM('{"intent": "session", "follow_up": true, "drivers": ["Leclerc"]}')
+        refused = Turn("Who had the most DNFs in 2024?", "That needs every race.", None)
+
+        resolution = await resolver(llm=llm).resolve("and Leclerc?", previous_turn(), refused)
+
+        assert resolution.question is None
+
+    async def test_a_long_earlier_question_is_shortened(self) -> None:
+        llm = FakeLLM('{"intent": "unsupported"}')
+        rambling = Turn("word " * 200, "Which year do you mean?", None, True)
+
+        await resolver(llm=llm).resolve("2024", None, rambling)
+
+        messages, _ = llm.calls[0]
+        earlier = messages[1].content.splitlines()[0]
+        assert len(earlier) <= len("Earlier question: ") + MAX_QUOTE
+        assert earlier.endswith("…")
+
+    async def test_a_missing_or_blank_rewrite_is_none(self) -> None:
+        for text in ('{"intent": "unsupported"}', '{"question": "  ", "intent": "unsupported"}'):
+            resolution = await resolver(llm=FakeLLM(text)).resolve("Best pizza?")
+
+            assert resolution.question is None
+
     @pytest.mark.parametrize(
         "text", ['{"intent": "gossip"}', '{"intent": "session", "targets": "Monza"}', "[]"]
     )
@@ -555,9 +666,19 @@ class TestSchema:
         properties = SCHEMA.schema["properties"]
         target_properties = properties["targets"]["items"]["properties"]
 
-        assert set(properties) == set(Mentions.model_fields)
+        assert set(properties) == set(Mentions.model_fields) - {"question"}
         assert SCHEMA.schema["required"] == list(properties)
         assert set(target_properties) == {"race", "reference", "year", "relative_year", "session"}
+
+    def test_the_reply_schema_adds_the_merged_question_first(self) -> None:
+        properties = REPLY_SCHEMA.schema["properties"]
+
+        assert set(properties) == set(Mentions.model_fields)
+        assert REPLY_SCHEMA.schema["required"] == list(properties)
+        # Written first, so the fields after it describe the merged question.
+        assert next(iter(properties)) == "question"
+        assert REPLY_SCHEMA.strict
+        assert REPLY_SCHEMA.schema["additionalProperties"] is False
 
     def test_every_object_is_closed_for_strict_mode(self) -> None:
         assert SCHEMA.strict

@@ -6,7 +6,7 @@ import datetime as dt
 
 import pytest
 
-from app.agent.conversations import Conversation, ConversationStore
+from app.agent.conversations import Conversation, ConversationStore, Turn
 from app.agent.entities import Intent, Resolution, ResolvedEntities, ResolvedSession
 from app.agent.executor import QueryResult
 from app.agent.ingestion_gate import GateDecision, GateStatus
@@ -35,14 +35,29 @@ RESOLVED_SPA = Resolution.of(ASKING_ABOUT_SPA)
 ROWS = QueryResult(("driver", "lap_time_ms"), (("Charles Leclerc", 109245),), False, 3)
 
 
-class Resolver:
-    def __init__(self, resolution: Resolution) -> None:
-        self.resolution = resolution
-        self.calls: list[tuple[str, ResolvedEntities | None]] = []
+MONZA = ResolvedSession(2026, 16, "Italian Grand Prix", SessionType.RACE, dt.date(2026, 9, 6))
+AT_MONZA = ResolvedEntities(Intent.SESSION, sessions=(MONZA,))
+MONZA_QUESTION = "Who gained the most positions at Monza?"
+MONZA_2026 = "Who gained the most positions at Monza in 2026?"
+WHICH_YEAR = "Which year's Monza do you mean?"
 
-    async def resolve(self, question: str, previous: ResolvedEntities | None = None) -> Resolution:
+
+class Resolver:
+    def __init__(self, *resolutions: Resolution) -> None:
+        # One resolution per ask, in order; the last repeats.
+        self.resolutions = list(resolutions)
+        self.calls: list[tuple[str, ResolvedEntities | None]] = []
+        self.earlier: list[Turn | None] = []
+
+    async def resolve(
+        self,
+        question: str,
+        previous: ResolvedEntities | None = None,
+        earlier: Turn | None = None,
+    ) -> Resolution:
         self.calls.append((question, previous))
-        return self.resolution
+        self.earlier.append(earlier)
+        return self.resolutions.pop(0) if len(self.resolutions) > 1 else self.resolutions[0]
 
 
 class Gate:
@@ -58,10 +73,14 @@ class Sql:
         self.outcome = outcome or SqlOutcome(
             SqlStatus.ANSWERED, QueryType.PACE, sql="SELECT 1", result=ROWS, attempts=1
         )
-        self.calls = 0
+        self.questions: list[str] = []
+
+    @property
+    def calls(self) -> int:
+        return len(self.questions)
 
     async def answer(self, question: str, entities: ResolvedEntities) -> SqlOutcome:
-        self.calls += 1
+        self.questions.append(question)
         return self.outcome
 
 
@@ -87,14 +106,13 @@ class Standings:
 class Harness:
     def __init__(
         self,
-        resolution: Resolution = RESOLVED_SPA,
-        *,
+        *resolutions: Resolution,
         gate: Gate | None = None,
         sql: Sql | None = None,
         standings: Standings | None = None,
     ) -> None:
         self.llm = FakeLLM("Leclerc averaged 1:49.245.")
-        self.resolver = Resolver(resolution)
+        self.resolver = Resolver(*(resolutions or (RESOLVED_SPA,)))
         self.sql = sql or Sql()
         self.standings = standings or Standings()
         self.agent = ChatAgent(self.llm, self.resolver, gate or Gate(), self.sql, self.standings)
@@ -137,6 +155,64 @@ class TestAnswered:
         assert harness.resolver.calls[1] == ("And Norris?", ASKING_ABOUT_SPA)
 
 
+class TestContext:
+    """The user's transcript: "2026" must complete the Monza question, not replace it."""
+
+    def harness(self, *, gate: Gate | None = None) -> Harness:
+        return Harness(
+            Resolution.ask(WHICH_YEAR),
+            Resolution(entities=AT_MONZA, question=MONZA_2026),
+            gate=gate,
+        )
+
+    async def test_a_reply_to_a_clarification_answers_the_original_question(self) -> None:
+        harness = self.harness()
+
+        await harness.ask(MONZA_QUESTION)
+        reply = await harness.ask("2026")
+
+        assert harness.resolver.earlier[1] == Turn(MONZA_QUESTION, WHICH_YEAR, None, True)
+        assert reply.entities == AT_MONZA
+        # The SQL and answer models see the whole question, never "2026".
+        assert harness.sql.questions == [MONZA_2026]
+        messages, _, _ = harness.llm.calls[0]
+        assert f"Question: {MONZA_2026}" in messages[1].content
+
+    async def test_the_completed_question_is_what_the_next_turn_sees(self) -> None:
+        harness = self.harness()
+
+        await harness.ask(MONZA_QUESTION)
+        await harness.ask("2026")
+        await harness.ask("And Leclerc?")
+
+        earlier = harness.resolver.earlier[2]
+        assert earlier is not None
+        assert (earlier.question, earlier.clarifying) == (MONZA_2026, False)
+        assert harness.resolver.calls[2] == ("And Leclerc?", AT_MONZA)
+
+    async def test_a_fetch_keeps_the_completed_question_for_the_re_ask(self) -> None:
+        gate = Gate(GateDecision(GateStatus.INGESTING, job_id="job-9", waiting_on=(MONZA,)))
+        harness = self.harness(gate=gate)
+
+        await harness.ask(MONZA_QUESTION)
+        fetching = await harness.ask("2026")
+        gate.decision = READY
+        # The frontend sends the same raw text again once the job lands.
+        await harness.ask("2026")
+
+        assert fetching.job_id == "job-9"
+        assert len(harness.resolver.calls) == 2
+        assert harness.sql.questions == [MONZA_2026]
+
+    async def test_without_a_rewrite_the_message_is_used_as_it_is(self) -> None:
+        harness = Harness()
+
+        await harness.ask("How fast was Leclerc at Spa 2024?")
+
+        assert harness.sql.questions == ["How fast was Leclerc at Spa 2024?"]
+        assert harness.conversation.turns[0].question == "How fast was Leclerc at Spa 2024?"
+
+
 class TestNoProseNeeded:
     async def test_a_clarifying_question_is_passed_back_and_not_remembered(self) -> None:
         harness = Harness(Resolution.ask("Which year's Silverstone do you mean?"))
@@ -147,6 +223,7 @@ class TestNoProseNeeded:
         assert reply.answer == reply.clarifying_question
         assert harness.llm.calls == []
         assert harness.conversation.previous_entities() is None
+        assert harness.conversation.turns[-1].clarifying
 
     async def test_an_unsupported_question_gets_the_fixed_reply(self) -> None:
         harness = Harness(Resolution.of(ResolvedEntities(Intent.UNSUPPORTED)))
