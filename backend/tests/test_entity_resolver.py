@@ -455,6 +455,33 @@ class TestFollowUps:
         session = only_session(resolution)
         assert (session.year, session.round_number) == (2024, 12)
 
+    @pytest.mark.parametrize("targets", [[], [target()]])
+    async def test_a_bare_year_follow_up_labelled_unsupported_keeps_the_topic(
+        self, targets: list[dict[str, Any]]
+    ) -> None:
+        # Seen live: "what about 2023" after a Monza question came back as
+        # unsupported, with the year and follow_up set (and sometimes an
+        # empty target).
+        found = mentions("unsupported", follow_up=True, year=2023, targets=targets)
+
+        resolution = await resolve(found, previous_turn())
+
+        session = only_session(resolution)
+        assert (session.year, session.round_number) == (2023, 14)
+        assert resolution.entities is not None
+        assert resolution.entities.intent is Intent.SESSION
+
+    async def test_an_off_topic_follow_up_stays_unsupported(self) -> None:
+        resolution = await resolve(mentions("unsupported", follow_up=True), previous_turn())
+
+        assert resolution.entities is not None
+        assert resolution.entities.intent is Intent.UNSUPPORTED
+
+    async def test_unsupported_without_a_follow_up_stays_unsupported(self) -> None:
+        resolution = await resolve(mentions("unsupported", year=2023), previous_turn())
+
+        assert resolution.entities == ResolvedEntities(intent=Intent.UNSUPPORTED)
+
     async def test_previous_turn_is_ignored_unless_this_is_a_follow_up(self) -> None:
         resolution = await resolve(mentions(drivers=["Leclerc"]), previous_turn())
 
@@ -635,6 +662,58 @@ class TestEndToEnd:
         resolution = await resolver(llm=llm).resolve("and Leclerc?", previous_turn(), refused)
 
         assert resolution.question is None
+
+    @pytest.mark.parametrize(
+        "message", ["what about 2023", "2023", "And in 2023?", "how about the 2023 season"]
+    )
+    async def test_a_bare_year_after_an_answer_asks_the_same_of_that_season(
+        self, message: str
+    ) -> None:
+        # What the live model said: season-wide, and not a follow-up.
+        llm = FakeLLM('{"intent": "season", "year": 2023, "follow_up": false}')
+        answered = Turn(
+            "Who gained the most positions at Monza in 2024?", "Norris", previous_turn()
+        )
+
+        resolution = await resolver(llm=llm).resolve(message, previous_turn(), answered)
+
+        session = only_session(resolution)
+        assert (session.year, session.grand_prix) == (2023, "Italian Grand Prix")
+        assert resolution.entities is not None
+        assert resolution.entities.drivers == ("Norris",)
+        assert resolution.question is not None
+        assert resolution.question.endswith(f"Follow-up: {message}")
+
+    async def test_a_bare_year_after_standings_asks_for_that_seasons_standings(self) -> None:
+        llm = FakeLLM('{"intent": "unsupported", "year": 2023}')
+        standings = previous_turn(intent=Intent.STANDINGS, sessions=(), year=2026)
+
+        resolution = await resolver(llm=llm).resolve("what about 2023?", standings)
+
+        assert resolution.entities is not None
+        assert (resolution.entities.intent, resolution.entities.year) == (Intent.STANDINGS, 2023)
+
+    async def test_a_bare_year_replying_to_a_question_back_is_left_to_the_model(self) -> None:
+        llm = FakeLLM(
+            '{"question": "Who won at Silverstone in 2024?", "intent": "session", '
+            '"targets": [{"race": "Silverstone", "year": 2024}]}'
+        )
+        asked_back = Turn("Who won at Silverstone?", "Which year's Silverstone?", None, True)
+
+        resolution = await resolver(llm=llm).resolve("2024", previous_turn(), asked_back)
+
+        assert only_session(resolution).grand_prix == "British Grand Prix"
+
+    async def test_a_season_question_with_a_year_is_not_a_bare_year(self) -> None:
+        llm = FakeLLM('{"intent": "season", "year": 2023}')
+        answered = Turn("Who won at Monza 2024?", "Verstappen", previous_turn())
+
+        resolution = await resolver(llm=llm).resolve(
+            "Who had the most DNFs in 2023?", previous_turn(), answered
+        )
+
+        assert resolution.entities is not None
+        assert resolution.entities.intent is Intent.SEASON
 
     async def test_a_long_earlier_question_is_shortened(self) -> None:
         llm = FakeLLM('{"intent": "unsupported"}')

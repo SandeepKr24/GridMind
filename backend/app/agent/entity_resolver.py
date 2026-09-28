@@ -21,6 +21,7 @@ the current one — flagged, so the answer can say it assumed.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from collections.abc import Callable
 from dataclasses import replace
 
@@ -44,6 +45,12 @@ WHICH_RACE = 'Which race do you mean? For example, "the 2024 British Grand Prix"
 MAX_ECHO = 60
 #: Joins a follow-up to the earlier question it leans on.
 FOLLOW_UP = " Follow-up: "
+#: "2023", "what about 2023?", "and in 2023", "how about the 2023 season".
+_BARE_YEAR = re.compile(
+    r"(?:and\s+|what\s+about\s+|how\s+about\s+)?(?:in\s+|for\s+)?(?:the\s+)?"
+    r"((?:19|20)\d{2})(?:\s+(?:season|one|race|edition))?\s*[?.!]*",
+    re.IGNORECASE,
+)
 
 
 class CalendarUnavailableError(RuntimeError):
@@ -78,6 +85,7 @@ class EntityResolver:
         earlier: Turn | None = None,
     ) -> Resolution:
         mentions = await extract_mentions(self._llm, question, previous, earlier)
+        mentions = _bare_year_follow_up(question, mentions, previous, earlier)
         resolution = await self.resolve_mentions(mentions, previous)
         return replace(resolution, question=_standalone(question, mentions, earlier))
 
@@ -86,6 +94,11 @@ class EntityResolver:
     ) -> Resolution:
         # Earlier turns only count when the model says this one leans on them.
         context = previous if mentions.follow_up else None
+        if mentions.intent is Intent.UNSUPPORTED and context and _names_anything(mentions):
+            # Seen live: "what about 2023" after a Monza question came back
+            # unsupported, with the year and follow_up set. Alone it says
+            # nothing about F1; as a follow-up it asks the same thing again.
+            mentions = mentions.model_copy(update={"intent": context.intent})
         base = ResolvedEntities(
             intent=mentions.intent,
             drivers=mentions.drivers or (context.drivers if context else ()),
@@ -250,6 +263,40 @@ class EntityResolver:
         if reference == "latest":
             return next((e for day, _, e in reversed(dated) if day < today), None)
         return next((e for day, _, e in dated if day >= today), None)
+
+
+def _bare_year_follow_up(
+    message: str, mentions: Mentions, previous: ResolvedEntities | None, earlier: Turn | None
+) -> Mentions:
+    """ "What about 2023?" after an answer asks the same thing of another season.
+
+    Seen live after a Monza question: the model labelled it season-wide or
+    unsupported, and mostly not a follow-up, so it was refused. A message that
+    is only a year can mean nothing else. After a question back, though, a
+    bare year is the reply to it ("Which year's Monza?" "2026"), which the
+    model merges on its own.
+    """
+    match = _BARE_YEAR.fullmatch(message.strip())
+    if match is None or previous is None or (earlier is not None and earlier.clarifying):
+        return mentions
+    return mentions.model_copy(
+        update={
+            "intent": previous.intent,
+            "year": int(match[1]),
+            "relative_year": None,
+            "targets": (),
+            "drivers": (),
+            "constructors": (),
+            "follow_up": True,
+        }
+    )
+
+
+def _names_anything(mentions: Mentions) -> bool:
+    """A year, race, session, driver or team: "what about pizza?" has none."""
+    stated = mentions.year is not None or mentions.relative_year is not None
+    in_targets = any(t != TargetMention() for t in mentions.targets)
+    return stated or in_targets or bool(mentions.drivers or mentions.constructors)
 
 
 def _standalone(message: str, mentions: Mentions, earlier: Turn | None) -> str | None:
