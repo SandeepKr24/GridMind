@@ -133,7 +133,7 @@ describe("TyreStrategyChart", () => {
     expect(screen.getByText("1 stop")).toBeTruthy();
     expect(screen.getByText("Medium")).toBeTruthy();
     expect(screen.getByText("Hard")).toBeTruthy();
-    expect(screen.getByLabelText("HARD, laps 21–53")).toBeTruthy();
+    expect(screen.getByLabelText("HARD, laps 21-53")).toBeTruthy();
   });
 
   it("lists drivers in finishing order", () => {
@@ -164,10 +164,10 @@ describe("TyreStrategyChart", () => {
         ]}
       />
     );
-    fireEvent.pointerEnter(screen.getByLabelText("HARD, laps 21–53"));
+    fireEvent.pointerEnter(screen.getByLabelText("HARD, laps 21-53"));
 
     const tip = screen.getByRole("tooltip");
-    expect(tip.textContent).toContain("HARDlaps 21–53");
+    expect(tip.textContent).toContain("HARDlaps 21-53");
     expect(tip.textContent).toContain("33laps on this set");
   });
 
@@ -189,7 +189,7 @@ describe("ClassificationTable", () => {
     );
     expect(screen.getByText("WINNER")).toBeTruthy();
     expect(screen.getByText("+1.2")).toBeTruthy();
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(3);
   });
 
   it("has an empty state", () => {
@@ -238,7 +238,7 @@ describe("RaceControlList", () => {
     );
     expect(screen.getByText("SAFETY CAR DEPLOYED")).toBeTruthy();
     expect(screen.getByText("L12")).toBeTruthy();
-    expect(screen.getByText("—")).toBeTruthy();
+    expect(screen.getByText("-")).toBeTruthy();
   });
 
   it("scrolls inside its panel instead of stretching the page", () => {

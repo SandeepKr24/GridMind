@@ -19,7 +19,7 @@ from app.api.schemas.race import format_lap_time
 from app.llm import LLMProvider, Message
 
 MAX_TOKENS = 1024
-EMPTY_CELL = "—"
+EMPTY_CELL = "-"
 
 SYSTEM_PROMPT = """\
 You are GridMind, a Formula 1 race analyst. Answer the question using only the

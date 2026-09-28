@@ -29,7 +29,7 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GridMind — AI Race Analyst",
+  title: "GridMind: AI Race Analyst",
   description:
     "Ask questions about Formula 1 races in plain English. Answers come from stored timing data, never invented.",
 };

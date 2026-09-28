@@ -89,7 +89,7 @@ export function TyreStrategyChart({
                 const last = i === s.stints.length - 1;
                 const share = (stint.end_lap - stint.start_lap + 1) / laps;
                 const fits = share * trackWidth - 2 >= MIN_LETTER_WIDTH;
-                const label = `${stint.compound}, laps ${stint.start_lap}–${stint.end_lap}`;
+                const label = `${stint.compound}, laps ${stint.start_lap}-${stint.end_lap}`;
                 return (
                   <div
                     key={`${stint.compound}-${stint.start_lap}-${i}`}
@@ -110,7 +110,7 @@ export function TyreStrategyChart({
                         y: row.offsetTop,
                         title: s.driver_name,
                         rows: [
-                          { label: `laps ${stint.start_lap}–${stint.end_lap}`, value: stint.compound, colour: spec.colour },
+                          { label: `laps ${stint.start_lap}-${stint.end_lap}`, value: stint.compound, colour: spec.colour },
                           { label: "laps on this set", value: String(stint.end_lap - stint.start_lap + 1) },
                         ],
                       });

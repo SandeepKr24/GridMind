@@ -175,13 +175,13 @@ function RaceHeader({
   busy: boolean;
 }) {
   const facts = [
-    { label: "LAPS", value: race.total_laps === null ? "—" : String(race.total_laps) },
-    { label: "FASTEST LAP", value: race.fastest_lap_time ?? "—" },
+    { label: "LAPS", value: race.total_laps === null ? "-" : String(race.total_laps) },
+    { label: "FASTEST LAP", value: race.fastest_lap_time ?? "-" },
     {
       label: "SAFETY CARS",
-      value: race.safety_car_periods === null ? "—" : String(race.safety_car_periods),
+      value: race.safety_car_periods === null ? "-" : String(race.safety_car_periods),
     },
-    { label: "MARGIN", value: race.winning_margin ?? "—" },
+    { label: "MARGIN", value: race.winning_margin ?? "-" },
   ];
 
   return (
@@ -256,7 +256,7 @@ function NotIngested({
       </div>
       <p className="mt-3 max-w-[560px] text-sm leading-relaxed text-ink-muted text-pretty">
         GridMind stores nothing until it is asked for. Fetching this session pulls
-        results, laps, pit stops and race control messages from the timing API — it
+        results, laps, pit stops and race control messages from the timing API. It
         usually takes 30 to 120 seconds. Once stored, it is instant forever after.
       </p>
       <div className="mt-6">
@@ -465,7 +465,7 @@ function ReportSection({
       {missing ? (
         <EmptyState
           title="No report yet"
-          body={`Reports for historic races are written on request. Generating one for the ${eventName} runs the analytics and asks the model to write it up — then it is stored permanently.`}
+          body={`Reports for historic races are written on request. Generating one for the ${eventName} runs the analytics and asks the model to write it up. Then it is stored permanently.`}
           action={
             <Button onClick={onGenerate} disabled={generating}>
               {generating ? "Generating…" : "Generate race report"}

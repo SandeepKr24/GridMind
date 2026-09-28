@@ -149,7 +149,7 @@ function DashboardContent({ data }: { data: DashboardSummary }) {
                     <TeamName name={row.constructor_name} className="text-sm text-ink-faint" />
                   </div>
                   <div className="font-mono text-sm text-ink-muted">
-                    {row.gap_to_leader ?? "—"}
+                    {row.gap_to_leader ?? "-"}
                   </div>
                 </div>
               ))}

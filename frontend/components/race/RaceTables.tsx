@@ -54,16 +54,16 @@ export function ClassificationTable({ rows }: { rows: ClassificationRow[] }) {
                 <TeamName name={row.constructor_name} />
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
-                {row.grid_position ?? "—"}
+                {row.grid_position ?? "-"}
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
-                {row.best_lap_time ?? "—"}
+                {row.best_lap_time ?? "-"}
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
-                {row.pit_stop_count ?? "—"}
+                {row.pit_stop_count ?? "-"}
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink-muted">
-                {row.gap_to_leader ?? (row.position === 1 ? "WINNER" : "—")}
+                {row.gap_to_leader ?? (row.position === 1 ? "WINNER" : "-")}
               </td>
               <td className="py-2.5 pr-4 font-mono text-sm text-ink">{row.points}</td>
             </tr>
@@ -248,7 +248,7 @@ export function RaceControlList({ events }: { events: RaceControlEvent[] }) {
               <li key={i} className="bg-surface-inset px-4 py-3">
                 <div className="flex items-baseline gap-3">
                   <span className="shrink-0 font-mono text-xs text-accent">
-                    {event.lap === null ? "—" : `L${event.lap}`}
+                    {event.lap === null ? "-" : `L${event.lap}`}
                   </span>
                   <div className="min-w-0">
                     <div className="font-display text-sm uppercase tracking-[0.1em] text-ink-dim">

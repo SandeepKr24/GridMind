@@ -130,9 +130,9 @@ export function LoadingPit({
   const subline = failed
     ? error ?? "The timing data for that session could not be retrieved."
     : overdue
-      ? `Still on stage ${stageIndex + 1} after ${Math.floor(elapsedSeconds)}s. The job may still finish — keep waiting, or run it in the background and check back.`
+      ? `Still on stage ${stageIndex + 1} after ${Math.floor(elapsedSeconds)}s. The job may still finish. Keep waiting, or run it in the background and check back.`
       : isLongFetch
-      ? `Large session — still fetching. Working, not frozen. ${Math.floor(elapsedSeconds)}s elapsed.`
+      ? `Large session, still fetching. Working, not frozen. ${Math.floor(elapsedSeconds)}s elapsed.`
       : `Stage ${stageIndex + 1} of ${JOB_STAGES.length} · lights advance on backend stages`;
 
   return (

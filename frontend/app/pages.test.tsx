@@ -496,7 +496,7 @@ describe("Race detail", () => {
     api.getRace.mockResolvedValue(race({ state: "available", total_laps: null, winning_margin: null }));
     renderPage(<RaceDetailPage />);
     expect(await screen.findByText("Italian Grand Prix")).toBeTruthy();
-    expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(2);
   });
 });
 

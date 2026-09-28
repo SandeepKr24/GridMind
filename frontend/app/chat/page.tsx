@@ -200,7 +200,7 @@ function ChatContent() {
         <div className="gm-label mb-3">This session</div>
         {history.length === 0 ? (
           <p className="m-0 text-xs leading-relaxed text-ink-trace">
-            Questions you ask appear here. Conversations are not saved — they end
+            Questions you ask appear here. Conversations are not saved. They end
             when you close the tab.
           </p>
         ) : (
@@ -269,7 +269,7 @@ function ChatContent() {
         </Panel>
 
         <p className="m-0 text-center text-xs text-ink-trace">
-          The first question about a session takes 30–120s while the timing data is
+          The first question about a session takes 30 to 120s while the timing data is
           fetched. After that it is instant.
         </p>
       </div>
@@ -298,7 +298,7 @@ function EmptyChat({ onPick }: { onPick: (q: string) => void }) {
       </h1>
       <p className="mt-3 max-w-[520px] text-base leading-relaxed text-ink-muted text-pretty">
         I can explore race results, driver performance, strategy, tyres, pit stops
-        and season standings. Every number comes from stored timing data — if it is
+        and season standings. Every number comes from stored timing data. If it is
         not in the database, I will say so rather than guess.
       </p>
 

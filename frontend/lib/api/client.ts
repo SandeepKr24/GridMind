@@ -10,6 +10,8 @@
  *    unreachable" need different copy, so they get different error kinds.
  */
 
+import { stripDashesDeep } from "@/lib/text";
+
 export type ApiErrorKind =
   | "network" // backend unreachable — almost always "not running yet" in dev
   | "timeout"
@@ -128,7 +130,7 @@ export async function request<T>(
     if (res.status === 204) return undefined as T;
 
     try {
-      return (await res.json()) as T;
+      return stripDashesDeep((await res.json()) as T);
     } catch {
       throw new ApiError("malformed", "The backend returned an unreadable response.");
     }
@@ -170,7 +172,7 @@ export function describeError(err: unknown): { title: string; body: string } {
     case "timeout":
       return {
         title: "THE BACKEND WENT QUIET",
-        body: "The request took longer than expected. The work may still be running — try again in a moment.",
+        body: "The request took longer than expected. The work may still be running. Try again in a moment.",
       };
     case "rate_limited":
       return {

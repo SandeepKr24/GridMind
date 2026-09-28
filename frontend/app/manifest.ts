@@ -7,7 +7,7 @@ import type { MetadataRoute } from "next";
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "GridMind — AI Race Analyst",
+    name: "GridMind: AI Race Analyst",
     short_name: "GridMind",
     description: "Ask questions about Formula 1 races in plain English.",
     start_url: "/",
