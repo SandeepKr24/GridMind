@@ -43,8 +43,11 @@ from app.llm import LLMProvider
 WHICH_RACE = 'Which race do you mean? For example, "the 2024 British Grand Prix".'
 #: User text is echoed back in clarifying questions; keep it short.
 MAX_ECHO = 60
-#: Joins a follow-up to the earlier question it leans on.
-FOLLOW_UP = " Follow-up: "
+#: How a follow-up is passed on: the earlier question, asked again of what the
+#: follow-up names. Seen live, "<earlier> Follow-up: what about baku" had the
+#: answer model report "nothing matching for Monza" above the Baku result.
+SAME_AS = 'Same question as "{earlier}", now for: {follow_up}'
+_SAME_AS = re.compile(r'Same question as "(.*)", now for: ', re.DOTALL)
 #: After a question back, anything this short without a "?" is the reply.
 MAX_REPLY_WORDS = 4
 #: "2023", "what about 2023?", "and in 2023", "how about the 2023 season".
@@ -326,8 +329,9 @@ def _standalone(message: str, mentions: Mentions, earlier: Turn | None) -> str |
     if not mentions.follow_up or earlier is None or earlier.entities is None:
         return None  # not a follow-up, or nothing answered to lean on
     # Chained follow-ups keep only the latest, so the text stays bounded.
-    base = earlier.question.split(FOLLOW_UP)[0]
-    return f"{base}{FOLLOW_UP}{said}"
+    joined = _SAME_AS.match(earlier.question)
+    base = joined[1] if joined else earlier.question
+    return SAME_AS.format(earlier=base, follow_up=said)
 
 
 def _reply_text(said: str, mentions: Mentions, asked_about: str) -> str | None:
@@ -337,9 +341,10 @@ def _reply_text(said: str, mentions: Mentions, asked_about: str) -> str | None:
     "Who won at Monza in 2026?"). Seen live, it does not always:
     - it may repeat the reply as it is ("Hamilton" after "No driver called
       Schumacher took part"; "this year" after "Which year's Baku?");
-    - it cannot merge into a joined follow-up ("...Monza? Follow-up: what
-      about baku", "this year" -> "what about Baku this year"), dropping
-      what was being asked. It still resolves the race right.
+    - it cannot merge into a joined follow-up ('Same question as "...at
+      Monza?", now for: what about baku', "this year" -> "what about Baku
+      this year"), dropping what was being asked. It still resolves the race
+      right.
     Then the reply is attached to the question it answers, as it was said.
     """
     merged = mentions.question
@@ -348,7 +353,7 @@ def _reply_text(said: str, mentions: Mentions, asked_about: str) -> str | None:
     fragment = "?" not in said and len(said.split()) <= MAX_REPLY_WORDS
     if unmerged and not (fragment or mentions.follow_up):
         return None  # a new, complete question
-    if unmerged or FOLLOW_UP in asked_about:
+    if unmerged or _SAME_AS.match(asked_about):
         return f"{asked_about} ({said})"
     return merged
 

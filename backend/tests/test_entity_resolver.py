@@ -620,19 +620,21 @@ class TestEndToEnd:
             "Question: and  Leclerc?"
         )
         assert resolution.question == (
-            "Where did Norris finish at Monza 2024? Follow-up: and Leclerc?"
+            'Same question as "Where did Norris finish at Monza 2024?", now for: and Leclerc?'
         )
 
     async def test_chained_follow_ups_keep_only_the_latest(self) -> None:
         llm = FakeLLM('{"intent": "session", "follow_up": true, "drivers": ["Hamilton"]}')
         joined = Turn(
-            "Where did Norris finish at Monza 2024? Follow-up: and Leclerc?", "P1", previous_turn()
+            'Same question as "Where did Norris finish at Monza 2024?", now for: and Leclerc?',
+            "P1",
+            previous_turn(),
         )
 
         resolution = await resolver(llm=llm).resolve("and Hamilton?", previous_turn(), joined)
 
         assert resolution.question == (
-            "Where did Norris finish at Monza 2024? Follow-up: and Hamilton?"
+            'Same question as "Where did Norris finish at Monza 2024?", now for: and Hamilton?'
         )
 
     @pytest.mark.parametrize("follow_up", ["true", "false"])
@@ -655,7 +657,8 @@ class TestEndToEnd:
             '"targets": [{"race": "Baku", "relative_year": "current"}], "follow_up": false}'
         )
         asked_back = Turn(
-            "Who gained the most places at Monza in 2026? Follow-up: what about baku",
+            'Same question as "Who gained the most places at Monza in 2026?", now for: '
+            "what about baku",
             "Which year's Baku do you mean?",
             None,
             True,
@@ -664,7 +667,8 @@ class TestEndToEnd:
         resolution = await resolver(llm=llm).resolve("this year", None, asked_back)
 
         assert resolution.question == (
-            "Who gained the most places at Monza in 2026? Follow-up: what about baku (this year)"
+            'Same question as "Who gained the most places at Monza in 2026?", now for: '
+            "what about baku (this year)"
         )
 
     async def test_a_new_question_after_a_clarification_stands_as_it_is(self) -> None:
@@ -708,7 +712,7 @@ class TestEndToEnd:
         assert resolution.entities is not None
         assert resolution.entities.drivers == ("Norris",)
         assert resolution.question is not None
-        assert resolution.question.endswith(f"Follow-up: {message}")
+        assert resolution.question.endswith(f"now for: {message}")
 
     @pytest.mark.parametrize("message", ["what about baku", "How about Baku?", "and Baku"])
     async def test_what_about_a_race_is_a_follow_up_whatever_the_model_says(
@@ -725,7 +729,7 @@ class TestEndToEnd:
         assert only_session(resolution).grand_prix == "Azerbaijan Grand Prix"
         assert only_session(resolution).year == 2026
         assert resolution.question == (
-            f"Who gained the most places at Monza in 2026? Follow-up: {message}"
+            f'Same question as "Who gained the most places at Monza in 2026?", now for: {message}'
         )
 
     async def test_a_question_back_on_a_follow_up_keeps_the_earlier_question(self) -> None:
@@ -739,7 +743,8 @@ class TestEndToEnd:
 
         assert resolution.clarifying_question is not None
         assert resolution.question == (
-            "Who gained the most places at Monza in 2023? Follow-up: what about baku"
+            'Same question as "Who gained the most places at Monza in 2023?", now for: '
+            "what about baku"
         )
 
     async def test_a_reply_to_a_question_back_on_a_follow_up_keeps_the_whole_question(
@@ -751,7 +756,8 @@ class TestEndToEnd:
             '"targets": [{"race": "Baku", "relative_year": "current"}], "follow_up": true}'
         )
         asked_back = Turn(
-            "Who gained the most places at Monza in 2026? Follow-up: what about baku",
+            'Same question as "Who gained the most places at Monza in 2026?", now for: '
+            "what about baku",
             "Which year's Baku do you mean?",
             None,
             True,
@@ -761,7 +767,8 @@ class TestEndToEnd:
 
         assert only_session(resolution).describe() == "2026 Azerbaijan Grand Prix race"
         assert resolution.question == (
-            "Who gained the most places at Monza in 2026? Follow-up: what about baku (this year)"
+            'Same question as "Who gained the most places at Monza in 2026?", now for: '
+            "what about baku (this year)"
         )
 
     async def test_a_new_question_after_a_question_back_on_a_follow_up_stands(self) -> None:
@@ -770,7 +777,10 @@ class TestEndToEnd:
             '"targets": [{"race": "British GP", "year": 2024}], "follow_up": false}'
         )
         asked_back = Turn(
-            "Who won at Monza 2024? Follow-up: what about baku", "Which year's Baku?", None, True
+            'Same question as "Who won at Monza 2024?", now for: what about baku',
+            "Which year's Baku?",
+            None,
+            True,
         )
 
         resolution = await resolver(llm=llm).resolve(
