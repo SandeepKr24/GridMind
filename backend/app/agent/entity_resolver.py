@@ -45,12 +45,16 @@ WHICH_RACE = 'Which race do you mean? For example, "the 2024 British Grand Prix"
 MAX_ECHO = 60
 #: Joins a follow-up to the earlier question it leans on.
 FOLLOW_UP = " Follow-up: "
+#: After a question back, anything this short without a "?" is the reply.
+MAX_REPLY_WORDS = 4
 #: "2023", "what about 2023?", "and in 2023", "how about the 2023 season".
 _BARE_YEAR = re.compile(
     r"(?:and\s+|what\s+about\s+|how\s+about\s+)?(?:in\s+|for\s+)?(?:the\s+)?"
     r"((?:19|20)\d{2})(?:\s+(?:season|one|race|edition))?\s*[?.!]*",
     re.IGNORECASE,
 )
+#: "what about baku", "how about Leclerc?", "and qualifying".
+_FOLLOW_UP_OPENER = re.compile(r"(?:and|what\s+about|how\s+about)\b", re.IGNORECASE)
 
 
 class CalendarUnavailableError(RuntimeError):
@@ -85,7 +89,7 @@ class EntityResolver:
         earlier: Turn | None = None,
     ) -> Resolution:
         mentions = await extract_mentions(self._llm, question, previous, earlier)
-        mentions = _bare_year_follow_up(question, mentions, previous, earlier)
+        mentions = _follow_up_by_wording(question, mentions, previous, earlier)
         resolution = await self.resolve_mentions(mentions, previous)
         return replace(resolution, question=_standalone(question, mentions, earlier))
 
@@ -265,19 +269,29 @@ class EntityResolver:
         return next((e for day, _, e in dated if day >= today), None)
 
 
-def _bare_year_follow_up(
+def _follow_up_by_wording(
     message: str, mentions: Mentions, previous: ResolvedEntities | None, earlier: Turn | None
 ) -> Mentions:
-    """ "What about 2023?" after an answer asks the same thing of another season.
+    """Follow-ups the wording alone gives away, whatever the model said.
 
-    Seen live after a Monza question: the model labelled it season-wide or
-    unsupported, and mostly not a follow-up, so it was refused. A message that
-    is only a year can mean nothing else. After a question back, though, a
-    bare year is the reply to it ("Which year's Monza?" "2026"), which the
-    model merges on its own.
+    The model's `follow_up` flag is unreliable on short messages. Seen live
+    after a Monza answer: "what about 2023" labelled season-wide or
+    unsupported, so it was refused; "what about baku" not a follow-up, so it
+    asked which year, and the reply lost what was being asked.
+
+    - Only a year: the same question of another season.
+    - "what about", "how about", "and": leans on the previous question.
+
+    After a question back, the message is the reply to it ("Which year's
+    Monza?" "2026"), which the model merges on its own.
     """
-    match = _BARE_YEAR.fullmatch(message.strip())
-    if match is None or previous is None or (earlier is not None and earlier.clarifying):
+    if previous is None or (earlier is not None and earlier.clarifying):
+        return mentions
+    text = message.strip()
+    match = _BARE_YEAR.fullmatch(text)
+    if match is None:
+        if _FOLLOW_UP_OPENER.match(text):
+            return mentions.model_copy(update={"follow_up": True})
         return mentions
     return mentions.model_copy(
         update={
@@ -302,22 +316,41 @@ def _names_anything(mentions: Mentions) -> bool:
 def _standalone(message: str, mentions: Mentions, earlier: Turn | None) -> str | None:
     """The message as the SQL and answer models should read it, if not as sent.
 
-    A reply to a clarifying question was merged by the model. A follow-up is
-    joined to the question it leans on: "And Leclerc?" alone does not say
-    what to look up about Leclerc. So is a reply the model left unmerged: it
-    tends to leave "Hamilton" as it is after "No driver called Schumacher
-    took part".
+    A follow-up is joined to the question it leans on: "And Leclerc?" alone
+    does not say what to look up about Leclerc. A reply to a question back
+    completes the question it answers (`_reply_text`).
     """
-    merged = mentions.question
-    if merged is not None and merged.casefold() != " ".join(message.split()).casefold():
-        return merged
-    if not mentions.follow_up or earlier is None:
-        return None
-    if earlier.entities is None and not earlier.clarifying:
-        return None  # a refusal: nothing to lean on
+    said = " ".join(message.split())
+    if earlier is not None and earlier.clarifying:
+        return _reply_text(said, mentions, earlier.question)
+    if not mentions.follow_up or earlier is None or earlier.entities is None:
+        return None  # not a follow-up, or nothing answered to lean on
     # Chained follow-ups keep only the latest, so the text stays bounded.
     base = earlier.question.split(FOLLOW_UP)[0]
-    return f"{base}{FOLLOW_UP}{' '.join(message.split())}"
+    return f"{base}{FOLLOW_UP}{said}"
+
+
+def _reply_text(said: str, mentions: Mentions, asked_about: str) -> str | None:
+    """The message after a question back: a reply to it, or a new question.
+
+    The model merges a plain reply well ("Which year's Monza?" "2026" ->
+    "Who won at Monza in 2026?"). Seen live, it does not always:
+    - it may repeat the reply as it is ("Hamilton" after "No driver called
+      Schumacher took part"; "this year" after "Which year's Baku?");
+    - it cannot merge into a joined follow-up ("...Monza? Follow-up: what
+      about baku", "this year" -> "what about Baku this year"), dropping
+      what was being asked. It still resolves the race right.
+    Then the reply is attached to the question it answers, as it was said.
+    """
+    merged = mentions.question
+    unmerged = merged is None or merged.casefold() == said.casefold()
+    # A short answer with no question mark can only be the reply.
+    fragment = "?" not in said and len(said.split()) <= MAX_REPLY_WORDS
+    if unmerged and not (fragment or mentions.follow_up):
+        return None  # a new, complete question
+    if unmerged or FOLLOW_UP in asked_about:
+        return f"{asked_about} ({said})"
+    return merged
 
 
 def _session_of(

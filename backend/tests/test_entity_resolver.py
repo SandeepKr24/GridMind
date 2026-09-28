@@ -392,6 +392,10 @@ def previous_turn(**overrides: Any) -> ResolvedEntities:
     return ResolvedEntities(**values)
 
 
+MONZA_2026 = ResolvedSession(2026, 13, "Italian Grand Prix", SessionType.RACE, dt.date(2026, 9, 6))
+MONZA_2023 = ResolvedSession(2023, 14, "Italian Grand Prix", SessionType.RACE, dt.date(2023, 9, 3))
+
+
 class TestFollowUps:
     async def test_new_driver_keeps_the_previous_race(self) -> None:
         resolution = await resolve(mentions(follow_up=True, drivers=["Leclerc"]), previous_turn())
@@ -631,15 +635,37 @@ class TestEndToEnd:
             "Where did Norris finish at Monza 2024? Follow-up: and Hamilton?"
         )
 
-    async def test_a_reply_the_model_left_unmerged_is_joined_to_what_it_answers(self) -> None:
-        llm = FakeLLM('{"question": "Hamilton", "intent": "session", "follow_up": true}')
+    @pytest.mark.parametrize("follow_up", ["true", "false"])
+    async def test_a_reply_the_model_left_unmerged_is_joined_to_what_it_answers(
+        self, follow_up: str
+    ) -> None:
+        llm = FakeLLM(f'{{"question": "Hamilton", "intent": "session", "follow_up": {follow_up}}}')
         asked_back = Turn(
             "Where did Schumacher finish?", 'No driver called "Schumacher" took part.', None, True
         )
 
         resolution = await resolver(llm=llm).resolve("Hamilton", previous_turn(), asked_back)
 
-        assert resolution.question == "Where did Schumacher finish? Follow-up: Hamilton"
+        assert resolution.question == "Where did Schumacher finish? (Hamilton)"
+
+    async def test_an_unflagged_short_reply_on_a_follow_up_still_completes_it(self) -> None:
+        # Seen live: "this year" repeated as it is, and not a follow-up.
+        llm = FakeLLM(
+            '{"question": "this year", "intent": "session", '
+            '"targets": [{"race": "Baku", "relative_year": "current"}], "follow_up": false}'
+        )
+        asked_back = Turn(
+            "Who gained the most places at Monza in 2026? Follow-up: what about baku",
+            "Which year's Baku do you mean?",
+            None,
+            True,
+        )
+
+        resolution = await resolver(llm=llm).resolve("this year", None, asked_back)
+
+        assert resolution.question == (
+            "Who gained the most places at Monza in 2026? Follow-up: what about baku (this year)"
+        )
 
     async def test_a_new_question_after_a_clarification_stands_as_it_is(self) -> None:
         llm = FakeLLM(
@@ -683,6 +709,87 @@ class TestEndToEnd:
         assert resolution.entities.drivers == ("Norris",)
         assert resolution.question is not None
         assert resolution.question.endswith(f"Follow-up: {message}")
+
+    @pytest.mark.parametrize("message", ["what about baku", "How about Baku?", "and Baku"])
+    async def test_what_about_a_race_is_a_follow_up_whatever_the_model_says(
+        self, message: str
+    ) -> None:
+        # Seen live: "what about baku" after a Monza answer came back as not a
+        # follow-up, so it asked which year, and the reply lost the question.
+        llm = FakeLLM('{"intent": "session", "targets": [{"race": "Baku"}], "follow_up": false}')
+        monza = previous_turn(sessions=(MONZA_2026,), drivers=())
+        answered = Turn("Who gained the most places at Monza in 2026?", "Antonelli", monza)
+
+        resolution = await resolver(llm=llm).resolve(message, monza, answered)
+
+        assert only_session(resolution).grand_prix == "Azerbaijan Grand Prix"
+        assert only_session(resolution).year == 2026
+        assert resolution.question == (
+            f"Who gained the most places at Monza in 2026? Follow-up: {message}"
+        )
+
+    async def test_a_question_back_on_a_follow_up_keeps_the_earlier_question(self) -> None:
+        # Baku is not on the 2023 calendar, so it asks; the stored question
+        # must still say what was being asked, for the reply to complete it.
+        llm = FakeLLM('{"intent": "session", "targets": [{"race": "Baku"}], "follow_up": false}')
+        monza = previous_turn(sessions=(MONZA_2023,), drivers=())
+        answered = Turn("Who gained the most places at Monza in 2023?", "Perez", monza)
+
+        resolution = await resolver(llm=llm).resolve("what about baku", monza, answered)
+
+        assert resolution.clarifying_question is not None
+        assert resolution.question == (
+            "Who gained the most places at Monza in 2023? Follow-up: what about baku"
+        )
+
+    async def test_a_reply_to_a_question_back_on_a_follow_up_keeps_the_whole_question(
+        self,
+    ) -> None:
+        # What the live model merged: the reply and the race, not the question.
+        llm = FakeLLM(
+            '{"question": "what about Baku this year", "intent": "session", '
+            '"targets": [{"race": "Baku", "relative_year": "current"}], "follow_up": true}'
+        )
+        asked_back = Turn(
+            "Who gained the most places at Monza in 2026? Follow-up: what about baku",
+            "Which year's Baku do you mean?",
+            None,
+            True,
+        )
+
+        resolution = await resolver(llm=llm).resolve("this  year", None, asked_back)
+
+        assert only_session(resolution).describe() == "2026 Azerbaijan Grand Prix race"
+        assert resolution.question == (
+            "Who gained the most places at Monza in 2026? Follow-up: what about baku (this year)"
+        )
+
+    async def test_a_new_question_after_a_question_back_on_a_follow_up_stands(self) -> None:
+        llm = FakeLLM(
+            '{"question": "Who won the 2024 British GP?", "intent": "session", '
+            '"targets": [{"race": "British GP", "year": 2024}], "follow_up": false}'
+        )
+        asked_back = Turn(
+            "Who won at Monza 2024? Follow-up: what about baku", "Which year's Baku?", None, True
+        )
+
+        resolution = await resolver(llm=llm).resolve(
+            "Who won the 2024 British GP?", None, asked_back
+        )
+
+        assert resolution.question is None
+
+    async def test_a_what_about_reply_to_a_question_back_is_left_to_the_model(self) -> None:
+        llm = FakeLLM(
+            '{"question": "Who won at Silverstone in 2024?", "intent": "session", '
+            '"targets": [{"race": "Silverstone", "year": 2024}], "follow_up": false}'
+        )
+        asked_back = Turn("Who won at Silverstone?", "Which year's Silverstone?", None, True)
+
+        resolution = await resolver(llm=llm).resolve("what about 2024", previous_turn(), asked_back)
+
+        assert only_session(resolution).grand_prix == "British Grand Prix"
+        assert resolution.question == "Who won at Silverstone in 2024?"
 
     async def test_a_bare_year_after_standings_asks_for_that_seasons_standings(self) -> None:
         llm = FakeLLM('{"intent": "unsupported", "year": 2023}')
